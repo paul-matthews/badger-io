@@ -9,8 +9,8 @@ on:
 env:
   MICROPYTHON_VERSION: "v1.25.0"
   MICROPYTHON_FLAVOUR: micropython
-  PIMORONI_PICO_VERSION: ci/micropython-edge
-  WORKFLOW_VERSION: v3
+  PIMORONI_PICO_VERSION: "v1.25.0"
+  WORKFLOW_VERSION: v4
 
 jobs:
   deps:
