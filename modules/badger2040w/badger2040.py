@@ -55,7 +55,7 @@ WAKEUP_MASK = 0
 
 i2c = machine.I2C(0)
 rtc = pcf85063a.PCF85063A(i2c)
-i2c.writeto_mem(0x51, 0x00, b'\x00')  # ensure rtc is running (this should be default?)
+i2c.writeto_mem(0x51, 0x00, b"\x00")  # ensure rtc is running (this should be default?)
 rtc.enable_timer_interrupt(False)
 
 enable = machine.Pin(ENABLE_3V3, machine.Pin.OUT)
@@ -191,10 +191,10 @@ class Badger2040():
         brightness = max(0, min(255, brightness))
         self._led.duty_u16(int(brightness * 256))
 
-    def invert(self, invert):
+    def invert(self, _invert):
         raise RuntimeError("Display invert not supported in PicoGraphics.")
 
-    def thickness(self, thickness):
+    def thickness(self, _thickness):
         raise RuntimeError("Thickness not supported in PicoGraphics.")
 
     def halt(self):

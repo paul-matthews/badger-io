@@ -113,7 +113,7 @@ def turn_off():
                 return
 
 
-def sleep_for(minutes=None):
+def sleep_for(_minutes=None):
     raise RuntimeError("Badger 2040 does not include an RTC.")
 
 
@@ -150,10 +150,10 @@ class Badger2040():
         brightness = max(0, min(255, brightness))
         self._led.duty_u16(int(brightness * 256))
 
-    def invert(self, invert):
+    def invert(self, _invert):
         raise RuntimeError("Display invert not supported in PicoGraphics.")
 
-    def thickness(self, thickness):
+    def thickness(self, _thickness):
         raise RuntimeError("Thickness not supported in PicoGraphics.")
 
     def halt(self):
