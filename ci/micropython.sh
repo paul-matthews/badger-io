@@ -43,6 +43,8 @@ function ci_micropython_clone {
     git submodule update --init lib/micropython-lib
     git submodule update --init lib/tinyusb
     git submodule update --init lib/btstack
+    cd lib/pico-sdk
+    git apply "$CI_PROJECT_ROOT/ci/pico-sdk-crt0-startup-rosc.patch"
     cd "$CI_BUILD_ROOT"
 }
 
