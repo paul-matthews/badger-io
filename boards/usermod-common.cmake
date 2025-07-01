@@ -67,9 +67,6 @@ include(servo/micropython)
 include(encoder/micropython)
 include(motor/micropython)
 
-# version.py and pimoroni.py
-include(modules_py/modules_py)
-
 # C++ Magic Memory
 include(cppmem/micropython)
 
