@@ -24,6 +24,8 @@ State.load("url_share", state)
 small = rom_font.smart
 W = screen.width
 H = screen.height
+FOOTER_LINE_Y = H - 18
+FOOTER_TEXT_Y = H - 12
 
 # Pre-generate companion page QR code once — it never changes
 _companion_code = qrcode.QRCode()
@@ -61,10 +63,10 @@ def draw_idle():
     screen.text("Press A to start sharing.", 8, 52)
     screen.text("BLE is off.", 8, 68)
     screen.pen = color.dark_grey
-    screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: start", 8, 116)
+    screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
+    screen.text("A: start", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 4, 116)
+    screen.text("HOME: menu", W - hw - 4, FOOTER_TEXT_Y)
 
 
 def draw_advertising():
@@ -84,10 +86,10 @@ def draw_advertising():
     screen.text("and tap Send.", tx, 86)
 
     screen.pen = color.dark_grey
-    screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: stop", 8, 116)
+    screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
+    screen.text("A: stop", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 4, 116)
+    screen.text("HOME: menu", W - hw - 4, FOOTER_TEXT_Y)
 
 
 def draw_url(url):
@@ -106,10 +108,10 @@ def draw_url(url):
     screen.text(short, tx, 38)
 
     screen.pen = color.dark_grey
-    screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: back", 8, 116)
+    screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
+    screen.text("A: back", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 4, 116)
+    screen.text("HOME: menu", W - hw - 4, FOOTER_TEXT_Y)
 
 
 _ble_active = False

@@ -8,7 +8,6 @@ os.chdir("/system/apps/card")
 
 screen.antialias = image.X2
 
-# Load card config — try card.local.json first, fall back to card.json
 _config = {}
 for _path in ("card.local.json", "card.json"):
     try:
@@ -25,7 +24,14 @@ EMAIL = _config.get("email", "you@example.com")
 LINKEDIN = _config.get("linkedin", "yourhandle")
 GITHUB = _config.get("github", "yourhandle")
 
-CX = screen.width / 2
+W = screen.width
+H = screen.height
+CX = W / 2
+
+HEADER_H = 26
+FOOTER_LINE_Y = H - 18
+FOOTER_TEXT_Y = H - 12
+CONTENT_H = FOOTER_LINE_Y - HEADER_H
 
 small = rom_font.smart
 large = rom_font.ignore
@@ -33,58 +39,64 @@ large = rom_font.ignore
 state = {"view": 0}
 State.load("card", state)
 
-_last_b = False
+_last_up = False
+_last_dn = False
 
 
 def _header(label):
     screen.pen = color.black
-    screen.shape(shape.rectangle(0, 0, screen.width, 26))
+    screen.shape(shape.rectangle(0, 0, W, HEADER_H))
     screen.pen = color.white
     screen.font = small
     screen.text(label, 8, 8)
 
 
+def _footer(left, right=None):
+    screen.pen = color.dark_grey
+    screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
+    screen.font = small
+    screen.pen = color.black
+    screen.text(left, 8, FOOTER_TEXT_Y)
+    if right:
+        rw, _ = screen.measure_text(right)
+        screen.text(right, W - rw - 4, FOOTER_TEXT_Y)
+
+
 def draw_name_view():
     screen.pen = color.white
     screen.clear()
-
     _header(COMPANY)
 
-    # Name — centred
+    name_y = HEADER_H + int(CONTENT_H * 0.30)
+    role_y = HEADER_H + int(CONTENT_H * 0.65)
+
     screen.font = large
     screen.pen = color.black
     nw, _ = screen.measure_text(NAME)
-    screen.text(NAME, CX - nw / 2, 46)
+    screen.text(NAME, CX - nw / 2, name_y)
 
-    # Role
     screen.font = small
-    screen.text(ROLE, 8, 92)
+    screen.text(ROLE, 8, role_y)
 
-    # Divider + hint
-    screen.pen = color.dark_grey
-    screen.shape(shape.rectangle(0, 110, screen.width, 1))
-    screen.text("B: contacts", 8, 116)
-    hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", screen.width - hw - 4, 116)
+    _footer("UP/DN: contacts", "HOME: menu")
 
 
 def draw_contact_view():
     screen.pen = color.white
     screen.clear()
-
     _header("Contact")
+
+    email_y = HEADER_H + int(CONTENT_H * 0.15)
+    linkedin_y = HEADER_H + int(CONTENT_H * 0.45)
+    github_y = HEADER_H + int(CONTENT_H * 0.70)
 
     screen.font = small
     screen.pen = color.black
-    screen.text(EMAIL, 8, 38)
-    screen.text("linkedin.com/in/" + LINKEDIN, 8, 62)
-    screen.text("github.com/" + GITHUB, 8, 86)
+    screen.text(EMAIL, 8, email_y)
+    screen.text("linkedin.com/in/" + LINKEDIN, 8, linkedin_y)
+    screen.text("github.com/" + GITHUB, 8, github_y)
 
-    screen.pen = color.dark_grey
-    screen.shape(shape.rectangle(0, 110, screen.width, 1))
-    screen.text("B: back", 8, 116)
-    hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", screen.width - hw - 4, 116)
+    _footer("UP/DN: back", "HOME: menu")
 
 
 _views = [draw_name_view, draw_contact_view]
@@ -95,12 +107,14 @@ def init():
 
 
 def update():
-    global _last_b
-    b_now = io.BUTTON_B in io.pressed
-    if b_now and not _last_b:
+    global _last_up, _last_dn
+    up_now = io.BUTTON_UP in io.pressed
+    dn_now = io.BUTTON_DOWN in io.pressed
+    if (up_now and not _last_up) or (dn_now and not _last_dn):
         state["view"] = 1 - state["view"]
         State.modify("card", state)
-    _last_b = b_now
+    _last_up = up_now
+    _last_dn = dn_now
 
     _views[state["view"]]()
 

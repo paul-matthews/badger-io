@@ -22,6 +22,8 @@ ALL_SESSIONS = _config.get("sessions", [])
 small = rom_font.smart
 W = screen.width
 H = screen.height
+FOOTER_LINE_Y = H - 18
+FOOTER_TEXT_Y = H - 12
 
 state = {"offset": 0}
 State.load("schedule", state)
@@ -144,15 +146,15 @@ def update():
         if len(relevant) > 1:
             screen.pen = color.dark_grey
             screen.font = small
-            screen.text("{}/{}".format(offset + 1, len(relevant)), W - 28, H - 12)
+            screen.text("{}/{}".format(offset + 1, len(relevant)), W - 28, FOOTER_TEXT_Y)
 
     screen.pen = color.dark_grey
-    screen.shape(shape.rectangle(0, 110, W, 1))
+    screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
     screen.font = small
     screen.pen = color.black
-    screen.text("UP/DN: scroll", 8, 116)
+    screen.text("UP/DN: scroll", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 4, 116)
+    screen.text("HOME: menu", W - hw - 4, FOOTER_TEXT_Y)
 
 
 def init():
