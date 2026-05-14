@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/charmbracelet/lipgloss"
@@ -304,45 +305,55 @@ func pushData() {
 func tailLogs() {
 	port := findPort()
 	logInfo("Streaming serial output from %s (Ctrl+C to stop)...\n", port)
+	logInfo("Waiting for output — navigate to an app on the device.\n")
 
-	// Ctrl+C for graceful exit
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	cmd := exec.Command("mpremote", "connect", port)
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
+	for {
+		// Configure port: 115200 baud, raw, no echo
+		exec.Command("stty", "-f", port, "115200", "raw", "-echo", "cs8", "-parenb", "-cstopb").Run()
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		logFatal("Failed to open stdout pipe: %v\n", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		logFatal("Failed to start mpremote: %v\n", err)
-	}
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			line := scanner.Text()
-			// Colour Python tracebacks red for visibility
-			if strings.Contains(line, "Traceback") || strings.Contains(line, "Error:") {
-				fmt.Println(styleError.Render(line))
-			} else {
-				fmt.Println(line)
+		// O_NOCTTY: don't make this the controlling terminal
+		// O_NONBLOCK: don't block on open waiting for DCD
+		f, err := os.OpenFile(port, os.O_RDONLY|syscall.O_NOCTTY|syscall.O_NONBLOCK, 0)
+		if err != nil {
+			select {
+			case <-sigCh:
+				return
+			default:
+				time.Sleep(300 * time.Millisecond)
+				continue
 			}
 		}
-	}()
+		// Switch to blocking reads once the port is open
+		syscall.SetNonblock(int(f.Fd()), false)
 
-	select {
-	case <-sigCh:
-		cmd.Process.Kill()
-	case <-done:
+		disconnected := make(chan struct{})
+		go func() {
+			defer close(disconnected)
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.Contains(line, "Traceback") || strings.Contains(line, "Error") {
+					fmt.Println(styleError.Render(line))
+				} else {
+					fmt.Println(line)
+				}
+			}
+		}()
+
+		select {
+		case <-sigCh:
+			f.Close()
+			fmt.Fprintln(os.Stderr)
+			return
+		case <-disconnected:
+			f.Close()
+			logWarn("\nDevice disconnected — waiting to reconnect...\n")
+			time.Sleep(300 * time.Millisecond)
+		}
 	}
-	cmd.Wait()
 }
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
