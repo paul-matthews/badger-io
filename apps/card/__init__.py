@@ -82,6 +82,7 @@ def draw_contact_view():
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, screen.width, 1))
     screen.text("B: back", 8, 116)
+    screen.text("HOME: menu", 200, 116)
 
 
 _views = [draw_name_view, draw_contact_view]

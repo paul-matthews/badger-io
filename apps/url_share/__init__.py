@@ -83,7 +83,7 @@ def draw_advertising():
 
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: stop", 8, 116)
+    screen.text("A: stop  HOME: menu", 8, 116)
 
 
 def draw_url(url):
