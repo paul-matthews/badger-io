@@ -198,7 +198,7 @@
         Disconnect
       </button>
     </div>
-    <p class="chrome-note">Requires Chrome or Edge on desktop. On the Badger, press <strong>A</strong> to enable BLE first.</p>
+    <p class="chrome-note">Requires Chrome or Edge on Android/desktop. On the Badger, press <strong>B</strong> to enable BLE first.</p>
   </div>
 
   <div class="card">
@@ -214,7 +214,7 @@
   <div class="card">
     <h2>How to use</h2>
     <ul class="requirements">
-      <li>On the Badger, open the <strong>URL Share</strong> app and press <strong>A</strong></li>
+      <li>On the Badger, open the <strong>URL Share</strong> app and press <strong>B</strong></li>
       <li>Click <em>Connect to Badger</em> above — select <strong>Badger-IO</strong> from the list</li>
       <li>Paste or type a URL and click <em>Send</em></li>
       <li>The Badger will display the URL and its QR code</li>
@@ -307,10 +307,11 @@
       try {
         const encoded = new TextEncoder().encode(url);
         await urlChar.writeValueWithResponse(encoded);
-        setResult('success', '✓ Sent to Badger: ' + url);
+        // Disconnect — the badge is now showing the URL QR code
+        if (device && device.gatt.connected) device.gatt.disconnect();
+        setResult('success', '✓ URL sent! Check your Badger for the QR code.');
       } catch (err) {
         setResult('error-msg', 'Send failed: ' + err.message);
-      } finally {
         sendBtn.disabled = false;
       }
     }

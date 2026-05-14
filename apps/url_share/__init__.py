@@ -102,33 +102,25 @@ def draw_idle():
 
 
 def draw_advertising():
-    print("url_share: draw_adv: clear")
     screen.pen = color.white
     screen.clear()
-    print("url_share: draw_adv: header")
     _header("Sharing - scan QR to connect")
-    print("url_share: draw_adv: qr start")
-    try:
-        qr_total = _draw_qr(4, 30, _companion_code)
-        print("url_share: draw_adv: qr done, size", qr_total)
-    except Exception as e:
-        print("url_share: draw_adv: qr FAIL", type(e).__name__, str(e))
-        return
+
+    qr_total = _draw_qr(4, 30, _companion_code)
+
     tx = qr_total + 12
-    print("url_share: draw_adv: text")
     screen.pen = color.black
     screen.font = small
     screen.text("Open in Chrome,", tx, 38)
     screen.text("tap Connect,", tx, 54)
     screen.text("enter a URL", tx, 70)
     screen.text("and tap Send.", tx, 86)
-    print("url_share: draw_adv: footer")
+
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
     screen.text("B: stop", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
     screen.text("HOME: menu", W - hw - 8, FOOTER_TEXT_Y)
-    print("url_share: draw_adv: done")
 
 
 def draw_url(url):
@@ -156,9 +148,8 @@ def draw_url(url):
 # ── App loop ──────────────────────────────────────────────────────────────────
 
 _ble_active   = False
-_last_a       = False
+_last_b       = False
 _needs_redraw = True
-_ticks        = 0
 
 
 def init():
@@ -166,23 +157,21 @@ def init():
 
 
 def update():
-    global _ble_active, _last_a, _needs_redraw, _pending_url, _ticks
-    _ticks += 1
-    if _ticks <= 5 or _ticks % 30 == 0:
-        print("url_share: tick", _ticks, "ble:", _ble_active)
+    global _ble_active, _last_b, _needs_redraw, _pending_url
 
     b_now = io.BUTTON_B in io.pressed
 
     if _pending_url is not None:
         url = _pending_url
         _pending_url = None
+        print("url_share: received", url)
         _ble_active = False
         _stop_advertising()
         state["url"] = url
         State.modify("url_share", state)
         draw_url(url)
 
-    elif b_now and not _last_a:
+    elif b_now and not _last_b:
         if state["url"]:
             state["url"] = ""
             State.modify("url_share", state)
@@ -190,16 +179,12 @@ def update():
         else:
             _ble_active = not _ble_active
             if _ble_active:
-                print("url_share: B pressed - starting adv")
                 try:
                     _start_advertising()
-                    print("url_share: gap_advertise ok")
                 except Exception as e:
-                    print("url_share: gap_advertise FAIL", type(e).__name__, str(e))
+                    print("url_share: gap_advertise failed:", type(e).__name__, str(e))
                     _ble_active = False
-                print("url_share: drawing adv screen")
                 draw_advertising()
-                print("url_share: draw_advertising returned")
             else:
                 _stop_advertising()
                 draw_idle()
@@ -212,7 +197,7 @@ def update():
             draw_idle()
         _needs_redraw = False
 
-    _last_a = b_now
+    _last_b = b_now
 
 
 def on_exit():
