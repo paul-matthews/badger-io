@@ -66,7 +66,7 @@ def draw_idle():
     screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
     screen.text("A: start", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 4, FOOTER_TEXT_Y)
+    screen.text("HOME: menu", W - hw - 8, FOOTER_TEXT_Y)
 
 
 def draw_advertising():
@@ -89,7 +89,7 @@ def draw_advertising():
     screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
     screen.text("A: stop", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 4, FOOTER_TEXT_Y)
+    screen.text("HOME: menu", W - hw - 8, FOOTER_TEXT_Y)
 
 
 def draw_url(url):
@@ -111,7 +111,7 @@ def draw_url(url):
     screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
     screen.text("A: back", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 4, FOOTER_TEXT_Y)
+    screen.text("HOME: menu", W - hw - 8, FOOTER_TEXT_Y)
 
 
 _ble_active = False

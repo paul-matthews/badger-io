@@ -59,7 +59,7 @@ def _footer(left, right=None):
     screen.text(left, 8, FOOTER_TEXT_Y)
     if right:
         rw, _ = screen.measure_text(right)
-        screen.text(right, W - rw - 4, FOOTER_TEXT_Y)
+        screen.text(right, W - rw - 8, FOOTER_TEXT_Y)
 
 
 def draw_name_view():
@@ -110,8 +110,12 @@ def update():
     global _last_up, _last_dn
     up_now = io.BUTTON_UP in io.pressed
     dn_now = io.BUTTON_DOWN in io.pressed
-    if (up_now and not _last_up) or (dn_now and not _last_dn):
-        state["view"] = 1 - state["view"]
+    n = len(_views)
+    if up_now and not _last_up:
+        state["view"] = (state["view"] - 1) % n
+        State.modify("card", state)
+    elif dn_now and not _last_dn:
+        state["view"] = (state["view"] + 1) % n
         State.modify("card", state)
     _last_up = up_now
     _last_dn = dn_now
