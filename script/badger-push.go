@@ -188,17 +188,13 @@ func uploadFiles(force bool) {
 	port := findPort()
 	logInfo("Uploading to %s...\n", port)
 
-	// Source trees to push: examples → /examples, data → /data
+	// apps/ → /system/apps/ on device (BadgeOS v4 layout)
 	type syncDir struct {
 		local  string
 		remote string
 	}
 	dirs := []syncDir{
-		{"badger_os/examples", "/examples"},
-		{"badger_os/badges", "/badges"},
-		{"badger_os/books", "/books"},
-		{"badger_os/icons", "/icons"},
-		{"badger_os/images", "/images"},
+		{"apps", "/system/apps"},
 	}
 
 	// Collect all files
@@ -279,21 +275,19 @@ func pushData() {
 	port := findPort()
 	logInfo("Pushing data files to %s...\n", port)
 
-	ensureDir(port, "/data")
-
-	files, err := filesInDir("badger_os/data")
+	// Walk apps/ and push only .json files (quick refresh without re-uploading .py/.png)
+	files, err := filesInDir("apps")
 	if err != nil {
-		logFatal("Failed to list badger_os/data: %v\n", err)
+		logFatal("Failed to list apps/: %v\n", err)
 	}
 
 	pushed := 0
 	for _, rel := range files {
-		if uploadIgnored(rel) || strings.HasSuffix(rel, ".example") {
-			logDetail("skip %s\n", rel)
+		if uploadIgnored(rel) || !strings.HasSuffix(rel, ".json") {
 			continue
 		}
-		local := filepath.Join("badger_os/data", rel)
-		remote := "/data/" + filepath.ToSlash(rel)
+		local := filepath.Join("apps", rel)
+		remote := "/system/apps/" + filepath.ToSlash(rel)
 		logInfo("  %s → %s\n", styleDim.Render(local), remote)
 		if err := copyFile(port, local, remote); err != nil {
 			logWarn("  Failed: %v\n", err)

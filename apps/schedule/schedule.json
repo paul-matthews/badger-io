@@ -1,0 +1,170 @@
+{
+  "conference": "Google I/O 2026",
+  "timezone": "America/Los_Angeles",
+  "days": [
+    {
+      "date": "2026-05-20",
+      "label": "Day 1"
+    },
+    {
+      "date": "2026-05-21",
+      "label": "Day 2"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "keynote-google",
+      "title": "Google Keynote",
+      "speaker": "Sundar Pichai",
+      "date": "2026-05-20",
+      "start": "10:00",
+      "end": "12:00",
+      "location": "Main Stage",
+      "track": "Keynote",
+      "highlighted": false
+    },
+    {
+      "id": "keynote-dev",
+      "title": "Developer Keynote",
+      "speaker": "Jeanine Banks",
+      "date": "2026-05-20",
+      "start": "13:00",
+      "end": "14:30",
+      "location": "Developer Stage",
+      "track": "Keynote",
+      "highlighted": true
+    },
+    {
+      "id": "flutter-new",
+      "title": "What's New in Flutter",
+      "speaker": "Tim Sneath",
+      "date": "2026-05-20",
+      "start": "14:30",
+      "end": "15:30",
+      "location": "Stage 2",
+      "track": "Flutter",
+      "highlighted": true
+    },
+    {
+      "id": "android-perf",
+      "title": "Android Performance Deep Dive",
+      "speaker": "Romain Guy",
+      "date": "2026-05-20",
+      "start": "15:00",
+      "end": "16:00",
+      "location": "Stage 1",
+      "track": "Android",
+      "highlighted": true
+    },
+    {
+      "id": "gemini-android",
+      "title": "Gemini in Android Development",
+      "speaker": "Joanna Smith",
+      "date": "2026-05-20",
+      "start": "15:00",
+      "end": "16:00",
+      "location": "Stage 3",
+      "track": "AI",
+      "highlighted": true
+    },
+    {
+      "id": "compose-advanced",
+      "title": "Jetpack Compose: Advanced Patterns",
+      "speaker": "Leland Richardson",
+      "date": "2026-05-20",
+      "start": "16:30",
+      "end": "17:30",
+      "location": "Stage 1",
+      "track": "Android",
+      "highlighted": true
+    },
+    {
+      "id": "firebase-ai",
+      "title": "Firebase AI Logic: Beyond the Basics",
+      "speaker": "Mike McDonald",
+      "date": "2026-05-20",
+      "start": "16:30",
+      "end": "17:30",
+      "location": "Stage 3",
+      "track": "Firebase",
+      "highlighted": false
+    },
+    {
+      "id": "chrome-devtools",
+      "title": "Chrome DevTools: What's New",
+      "speaker": "Jecelyn Yeen",
+      "date": "2026-05-20",
+      "start": "14:30",
+      "end": "15:30",
+      "location": "Stage 4",
+      "track": "Web",
+      "highlighted": false
+    },
+    {
+      "id": "android-studio-ai",
+      "title": "Android Studio AI Features",
+      "speaker": "Xavier Ducrohet",
+      "date": "2026-05-21",
+      "start": "10:00",
+      "end": "11:00",
+      "location": "Stage 1",
+      "track": "Android",
+      "highlighted": true
+    },
+    {
+      "id": "wearos",
+      "title": "Wear OS in 2026",
+      "speaker": "Hoi Lam",
+      "date": "2026-05-21",
+      "start": "11:00",
+      "end": "12:00",
+      "location": "Stage 2",
+      "track": "Wear OS",
+      "highlighted": true
+    },
+    {
+      "id": "security-privacy",
+      "title": "Security & Privacy Best Practices",
+      "speaker": "Sara N-Marandi",
+      "date": "2026-05-21",
+      "start": "13:00",
+      "end": "14:00",
+      "location": "Stage 3",
+      "track": "Security",
+      "highlighted": false
+    },
+    {
+      "id": "wasm-web",
+      "title": "WebAssembly & the Future of the Web",
+      "speaker": "Alex Danilo",
+      "date": "2026-05-21",
+      "start": "14:00",
+      "end": "15:00",
+      "location": "Stage 4",
+      "track": "Web",
+      "highlighted": false
+    },
+    {
+      "id": "gemini-api",
+      "title": "Gemini API: New Modalities",
+      "speaker": "Logan Kilpatrick",
+      "date": "2026-05-21",
+      "start": "15:00",
+      "end": "16:00",
+      "location": "Stage 1",
+      "track": "AI",
+      "highlighted": true
+    },
+    {
+      "id": "cloud-highlights",
+      "title": "Google Cloud Highlights",
+      "speaker": "Thomas Kurian",
+      "date": "2026-05-21",
+      "start": "16:00",
+      "end": "17:00",
+      "location": "Main Stage",
+      "track": "Cloud",
+      "highlighted": false
+    }
+  ]
+}
