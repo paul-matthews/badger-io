@@ -151,7 +151,8 @@ def update():
     screen.font = small
     screen.pen = color.black
     screen.text("UP/DN: scroll", 8, 116)
-    screen.text("HOME: menu", 200, 116)
+    hw, _ = screen.measure_text("HOME: menu")
+    screen.text("HOME: menu", W - hw - 4, 116)
 
 
 def init():

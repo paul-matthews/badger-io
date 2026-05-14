@@ -64,7 +64,8 @@ def draw_name_view():
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, screen.width, 1))
     screen.text("B: contacts", 8, 116)
-    screen.text("HOME: menu", 200, 116)
+    hw, _ = screen.measure_text("HOME: menu")
+    screen.text("HOME: menu", screen.width - hw - 4, 116)
 
 
 def draw_contact_view():
@@ -82,7 +83,8 @@ def draw_contact_view():
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, screen.width, 1))
     screen.text("B: back", 8, 116)
-    screen.text("HOME: menu", 200, 116)
+    hw, _ = screen.measure_text("HOME: menu")
+    screen.text("HOME: menu", screen.width - hw - 4, 116)
 
 
 _views = [draw_name_view, draw_contact_view]

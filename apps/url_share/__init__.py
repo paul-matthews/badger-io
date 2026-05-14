@@ -62,7 +62,9 @@ def draw_idle():
     screen.text("BLE is off.", 8, 68)
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: start  HOME: menu", 8, 116)
+    screen.text("A: start", 8, 116)
+    hw, _ = screen.measure_text("HOME: menu")
+    screen.text("HOME: menu", W - hw - 4, 116)
 
 
 def draw_advertising():
@@ -83,7 +85,9 @@ def draw_advertising():
 
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: stop  HOME: menu", 8, 116)
+    screen.text("A: stop", 8, 116)
+    hw, _ = screen.measure_text("HOME: menu")
+    screen.text("HOME: menu", W - hw - 4, 116)
 
 
 def draw_url(url):
@@ -103,7 +107,9 @@ def draw_url(url):
 
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: back  HOME: menu", 8, 116)
+    screen.text("A: back", 8, 116)
+    hw, _ = screen.measure_text("HOME: menu")
+    screen.text("HOME: menu", W - hw - 4, 116)
 
 
 _ble_active = False
