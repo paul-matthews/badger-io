@@ -16,12 +16,18 @@ _svc = aioble.Service(_SVC_UUID)
 _url_char = aioble.Characteristic(_svc, _URL_UUID, write=True, read=True, capture=True)
 aioble.register_services(_svc)
 
+COMPANION_URL = "https://paul-matthews.github.io/badger-io/"
+
 state = {"url": ""}
 State.load("url_share", state)
 
 small = rom_font.smart
 W = screen.width
 H = screen.height
+
+# Pre-generate companion page QR code once — it never changes
+_companion_code = qrcode.QRCode()
+_companion_code.set_text(COMPANION_URL)
 
 
 def _header(label):
@@ -34,7 +40,7 @@ def _header(label):
 
 def _draw_qr(ox, oy, code):
     w, _ = code.get_size()
-    cell_size = max(1, min(H - 36, 90) // w)
+    cell_size = max(1, min(H - 36, 84) // w)
     total = cell_size * w
     screen.pen = color.white
     screen.shape(shape.rectangle(ox, oy, total, total))
@@ -52,26 +58,32 @@ def draw_idle():
     _header("URL Share")
     screen.pen = color.black
     screen.font = small
-    screen.text("Press A to enable BLE,", 8, 38)
-    screen.text("then open the companion", 8, 54)
-    screen.text("page in Chrome.", 8, 70)
+    screen.text("Press A to start sharing.", 8, 52)
+    screen.text("BLE is off.", 8, 68)
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: start BLE", 8, 116)
+    screen.text("A: start  HOME: menu", 8, 116)
 
 
 def draw_advertising():
+    """BLE is active — show companion QR so people can scan and connect."""
     screen.pen = color.white
     screen.clear()
-    _header("BLE Active")
+    _header("Sharing — scan to connect")
+
+    qr_total = _draw_qr(4, 30, _companion_code)
+
+    tx = qr_total + 12
     screen.pen = color.black
     screen.font = small
-    screen.text("Open Chrome companion page,", 8, 38)
-    screen.text("tap Connect → Badger-IO,", 8, 54)
-    screen.text("enter URL and tap Send.", 8, 70)
+    screen.text("Open in Chrome,", tx, 38)
+    screen.text("tap Connect,", tx, 54)
+    screen.text("enter a URL", tx, 70)
+    screen.text("and tap Send.", tx, 86)
+
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: stop BLE", 8, 116)
+    screen.text("A: stop", 8, 116)
 
 
 def draw_url(url):
@@ -91,7 +103,7 @@ def draw_url(url):
 
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: clear  HOME: menu", 8, 116)
+    screen.text("A: back  HOME: menu", 8, 116)
 
 
 _ble_active = False
@@ -143,6 +155,7 @@ async def _input_task():
         a_now = io.BUTTON_A in io.pressed
         if a_now and not _last_a:
             if state["url"]:
+                # Clear received URL, return to idle (BLE stays off)
                 state["url"] = ""
                 State.modify("url_share", state)
                 draw_idle()
