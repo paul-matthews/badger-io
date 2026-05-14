@@ -3,6 +3,7 @@ import os
 import asyncio
 import aioble
 import bluetooth
+import machine
 import qrcode
 from badgeware import State
 
@@ -177,15 +178,17 @@ async def _input_task():
 
 
 def init():
-    pass
+    asyncio.run(asyncio.gather(
+        asyncio.create_task(_ble_task()),
+        asyncio.create_task(_input_task()),
+    ))
+
+
+def update():
+    # Reached only after init() returns (app exited normally) — go back to launcher
+    machine.reset()
 
 
 def on_exit():
     global _done
     _done = True
-
-
-asyncio.run(asyncio.gather(
-    asyncio.create_task(_ble_task()),
-    asyncio.create_task(_input_task()),
-))
