@@ -257,8 +257,7 @@
 
       try {
         device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'Badger-IO' }],
-          optionalServices: [SERVICE_UUID],
+          filters: [{ services: [SERVICE_UUID] }],
         });
 
         device.addEventListener('gattserverdisconnected', onDisconnected);
