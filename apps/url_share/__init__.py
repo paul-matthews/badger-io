@@ -62,7 +62,7 @@ def draw_idle():
     screen.text("BLE is off.", 8, 68)
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: start  A+C: menu", 8, 116)
+    screen.text("A: start  HOME: menu", 8, 116)
 
 
 def draw_advertising():
@@ -83,7 +83,7 @@ def draw_advertising():
 
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: stop  A+C: menu", 8, 116)
+    screen.text("A: stop  HOME: menu", 8, 116)
 
 
 def draw_url(url):
@@ -103,7 +103,7 @@ def draw_url(url):
 
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, 110, W, 1))
-    screen.text("A: back  A+C: menu", 8, 116)
+    screen.text("A: back  HOME: menu", 8, 116)
 
 
 _ble_active = False
@@ -152,14 +152,7 @@ async def _input_task():
         draw_idle()
 
     while not _done:
-        pressed = io.pressed
-        a_now = io.BUTTON_A in pressed
-        c_now = io.BUTTON_C in pressed
-
-        # A+C exits to launcher (standard BadgeOS combo)
-        if a_now and c_now:
-            _done = True
-            break
+        a_now = io.BUTTON_A in io.pressed
 
         if a_now and not _last_a:
             if state["url"]:
