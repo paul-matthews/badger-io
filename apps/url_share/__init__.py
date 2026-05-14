@@ -1,36 +1,45 @@
+print("url_share: importing")
 import sys
 import os
 import asyncio
+print("url_share: importing aioble")
 import aioble
+print("url_share: importing bluetooth")
 import bluetooth
 import machine
 import qrcode
 from badgeware import State
+print("url_share: imports done")
 
 sys.path.insert(0, "/system/apps/url_share")
 os.chdir("/system/apps/url_share")
 
+print("url_share: setting up BLE service")
 _SVC_UUID = bluetooth.UUID("ba5d4e57-0000-0000-0000-000000000001")
 _URL_UUID = bluetooth.UUID("ba5d4e57-0000-0000-0000-000000000002")
 
 _svc = aioble.Service(_SVC_UUID)
 _url_char = aioble.Characteristic(_svc, _URL_UUID, write=True, read=True, capture=True)
 aioble.register_services(_svc)
+print("url_share: BLE service registered")
 
 COMPANION_URL = "https://paul-matthews.github.io/badger-io/"
 
 state = {"url": ""}
 State.load("url_share", state)
+print("url_share: state loaded")
 
 small = rom_font.smart
 W = screen.width
 H = screen.height
 FOOTER_LINE_Y = H - 18
 FOOTER_TEXT_Y = H - 12
+print("url_share: screen dims {}x{}".format(W, H))
 
-# Pre-generate companion page QR code once — it never changes
+print("url_share: generating companion QR")
 _companion_code = qrcode.QRCode()
 _companion_code.set_text(COMPANION_URL)
+print("url_share: module ready")
 
 
 def _header(label):
@@ -120,6 +129,7 @@ _done = False
 
 
 async def _ble_task():
+    print("url_share: _ble_task started")
     global _ble_active, state
     while not _done:
         if not _ble_active:
@@ -152,6 +162,7 @@ async def _ble_task():
 
 
 async def _input_task():
+    print("url_share: _input_task started")
     global _ble_active, _done, state
     _last_a = False
 
@@ -178,10 +189,12 @@ async def _input_task():
 
 
 def init():
+    print("url_share: init() called")
     asyncio.run(asyncio.gather(
         asyncio.create_task(_ble_task()),
         asyncio.create_task(_input_task()),
     ))
+    print("url_share: asyncio loop exited")
 
 
 def update():
