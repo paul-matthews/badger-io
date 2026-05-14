@@ -103,7 +103,7 @@ _views = [draw_name_view, draw_contact_view]
 
 
 def init():
-    pass
+    print("card: init")
 
 
 def update():
