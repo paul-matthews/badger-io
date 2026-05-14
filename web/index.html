@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Badger-IO · URL Share</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue: #1a73e8;
+      --blue-dark: #1557b0;
+      --green: #1e8e3e;
+      --red: #d93025;
+      --surface: #f8f9fa;
+      --on-surface: #202124;
+      --secondary: #5f6368;
+      --outline: #dadce0;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Roboto', 'Google Sans', system-ui, sans-serif;
+      background: var(--surface);
+      color: var(--on-surface);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 32px;
+    }
+
+    .wordmark {
+      font-family: 'Google Sans', 'Roboto', sans-serif;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--on-surface);
+      letter-spacing: -0.3px;
+    }
+
+    .wordmark span {
+      color: var(--blue);
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--secondary);
+      margin-top: 4px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--outline);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .card + .card { margin-top: 16px; }
+
+    h2 {
+      font-family: 'Google Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      color: var(--on-surface);
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--outline);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .dot.connected { background: var(--green); }
+    .dot.connecting { background: #fbbc04; }
+    .dot.error { background: var(--red); }
+
+    #status-text {
+      font-size: 14px;
+      color: var(--secondary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Google Sans', 'Roboto', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-dark); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .btn-primary:disabled { background: #a8c7fa; cursor: not-allowed; }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--blue);
+      border: 1px solid var(--outline);
+    }
+    .btn-outline:hover { background: #e8f0fe; }
+    .btn-outline:disabled { color: var(--outline); cursor: not-allowed; }
+
+    .url-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    input[type="url"] {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--outline);
+      border-radius: 8px;
+      font-family: 'Roboto', sans-serif;
+      font-size: 14px;
+      color: var(--on-surface);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="url"]:focus { border-color: var(--blue); }
+
+    #send-btn { flex-shrink: 0; border-radius: 8px; }
+
+    .result {
+      font-size: 13px;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      display: none;
+    }
+    .result.success { background: #e6f4ea; color: var(--green); display: block; }
+    .result.error-msg { background: #fce8e6; color: var(--red); display: block; }
+
+    .requirements {
+      font-size: 12px;
+      color: var(--secondary);
+      line-height: 1.6;
+    }
+    .requirements li { margin-left: 16px; }
+
+    .chrome-note {
+      font-size: 12px;
+      color: var(--secondary);
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #e8f0fe;
+      border-radius: 8px;
+      color: var(--blue-dark);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wordmark">Badger<span>-IO</span></div>
+    <div class="subtitle">URL Share companion · Google I/O 2026</div>
+  </header>
+
+  <div class="card">
+    <h2>Badger Connection</h2>
+    <div class="status-row">
+      <div class="dot" id="dot"></div>
+      <span id="status-text">Not connected</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" id="connect-btn" onclick="connectBLE()">
+        Connect to Badger
+      </button>
+      <button class="btn btn-outline" id="disconnect-btn" onclick="disconnectBLE()" disabled>
+        Disconnect
+      </button>
+    </div>
+    <p class="chrome-note">Requires Chrome or Edge on desktop. On the Badger, press <strong>A</strong> to enable BLE first.</p>
+  </div>
+
+  <div class="card">
+    <h2>Send URL</h2>
+    <div class="url-input-row">
+      <input type="url" id="url-input" placeholder="https://developers.android.com/…"
+             value="" autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary" id="send-btn" onclick="sendURL()" disabled>Send</button>
+    </div>
+    <div id="result"></div>
+  </div>
+
+  <div class="card">
+    <h2>How to use</h2>
+    <ul class="requirements">
+      <li>On the Badger, open the <strong>URL Share</strong> app and press <strong>A</strong></li>
+      <li>Click <em>Connect to Badger</em> above — select <strong>Badger-IO</strong> from the list</li>
+      <li>Paste or type a URL and click <em>Send</em></li>
+      <li>The Badger will display the URL and its QR code</li>
+    </ul>
+  </div>
+
+  <script>
+    const SERVICE_UUID = 'ba5d4e57-0000-0000-0000-000000000001';
+    const URL_CHAR_UUID = 'ba5d4e57-0000-0000-0000-000000000002';
+
+    let device = null;
+    let server = null;
+    let urlChar = null;
+
+    const dot = document.getElementById('dot');
+    const statusText = document.getElementById('status-text');
+    const connectBtn = document.getElementById('connect-btn');
+    const disconnectBtn = document.getElementById('disconnect-btn');
+    const sendBtn = document.getElementById('send-btn');
+    const resultEl = document.getElementById('result');
+
+    function setStatus(state, msg) {
+      dot.className = 'dot ' + state;
+      statusText.textContent = msg;
+    }
+
+    function setResult(type, msg) {
+      resultEl.className = 'result ' + type;
+      resultEl.textContent = msg;
+    }
+
+    async function connectBLE() {
+      if (!navigator.bluetooth) {
+        setResult('error-msg', 'Web Bluetooth is not supported in this browser. Please use Chrome or Edge on desktop.');
+        return;
+      }
+
+      setStatus('connecting', 'Scanning for Badger-IO…');
+      connectBtn.disabled = true;
+
+      try {
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'Badger-IO' }],
+          optionalServices: [SERVICE_UUID],
+        });
+
+        device.addEventListener('gattserverdisconnected', onDisconnected);
+
+        setStatus('connecting', 'Connecting…');
+        server = await device.gatt.connect();
+
+        const svc = await server.getPrimaryService(SERVICE_UUID);
+        urlChar = await svc.getCharacteristic(URL_CHAR_UUID);
+
+        setStatus('connected', 'Connected to ' + device.name);
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        sendBtn.disabled = false;
+      } catch (err) {
+        setStatus('error', err.name === 'NotFoundError' ? 'No device selected.' : ('Error: ' + err.message));
+        connectBtn.disabled = false;
+      }
+    }
+
+    function onDisconnected() {
+      setStatus('', 'Disconnected');
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+      sendBtn.disabled = true;
+      urlChar = null;
+      server = null;
+    }
+
+    function disconnectBLE() {
+      if (device && device.gatt.connected) device.gatt.disconnect();
+    }
+
+    async function sendURL() {
+      const url = document.getElementById('url-input').value.trim();
+      if (!url) {
+        setResult('error-msg', 'Please enter a URL.');
+        return;
+      }
+      if (!urlChar) {
+        setResult('error-msg', 'Not connected to Badger. Connect first.');
+        return;
+      }
+
+      sendBtn.disabled = true;
+      resultEl.className = 'result';
+      try {
+        const encoded = new TextEncoder().encode(url);
+        await urlChar.writeValueWithResponse(encoded);
+        setResult('success', '✓ Sent to Badger: ' + url);
+      } catch (err) {
+        setResult('error-msg', 'Send failed: ' + err.message);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    // Allow pressing Enter in URL field to send
+    document.getElementById('url-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendURL();
+    });
+  </script>
+</body>
+</html>

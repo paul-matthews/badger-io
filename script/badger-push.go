@@ -1,0 +1,383 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+
+	"github.com/alecthomas/kong"
+	"github.com/charmbracelet/lipgloss"
+	clog "github.com/charmbracelet/log"
+	"github.com/schollz/progressbar/v3"
+)
+
+// ── Patterns ──────────────────────────────────────────────────────────────────
+
+const picoPortPattern = "/dev/tty.usbmodem*"
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+var (
+	styleHeader  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
+	styleSuccess = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	styleWarning = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	styleError   = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	styleInfo    = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
+	styleDim     = lipgloss.NewStyle().Faint(true)
+)
+
+var logger *clog.Logger
+
+func initLogger(verbose int) {
+	level := clog.WarnLevel
+	if verbose >= 2 {
+		level = clog.DebugLevel
+	} else if verbose >= 1 {
+		level = clog.InfoLevel
+	}
+	logger = clog.NewWithOptions(os.Stderr, clog.Options{Level: level})
+}
+
+func logInfo(format string, a ...any)    { fmt.Fprintf(os.Stderr, styleInfo.Render(fmt.Sprintf(format, a...))) }
+func logSuccess(format string, a ...any) { fmt.Fprintf(os.Stderr, styleSuccess.Render(fmt.Sprintf(format, a...))) }
+func logWarn(format string, a ...any)    { fmt.Fprintf(os.Stderr, styleWarning.Render(fmt.Sprintf(format, a...))) }
+func logErr(format string, a ...any)     { fmt.Fprintf(os.Stderr, styleError.Render(fmt.Sprintf(format, a...))) }
+func logFatal(format string, a ...any)   { logErr(format, a...); os.Exit(1) }
+func logDetail(format string, a ...any) {
+	if logger != nil {
+		logger.Debug(fmt.Sprintf(format, a...))
+	}
+}
+
+// ── CLI ───────────────────────────────────────────────────────────────────────
+
+var cli struct {
+	Port    string `short:"p" help:"Serial port (default: first /dev/tty.usbmodem*)." placeholder:"PORT"`
+	DryRun  bool   `help:"Show what would be sent without touching the device." name:"dry-run"`
+	Verbose int    `short:"v" type:"counter" help:"Increase verbosity (-v, -vv)."`
+
+	Upload UploadCmd `cmd:"" default:"withargs" help:"Push app code and examples to device."`
+	Data   DataCmd   `cmd:"" help:"Push data files (JSON) to device."`
+	Logs   LogsCmd   `cmd:"" help:"Stream serial output from device."`
+	Reset  ResetCmd  `cmd:"" help:"Soft-reset the device."`
+}
+
+type UploadCmd struct {
+	Force bool `short:"f" help:"Re-upload all files, skipping nothing."`
+}
+
+type DataCmd struct{}
+type LogsCmd struct{}
+type ResetCmd struct{}
+
+func (c *UploadCmd) Run() error { uploadFiles(c.Force); return nil }
+func (c *DataCmd) Run() error   { pushData(); return nil }
+func (c *LogsCmd) Run() error   { tailLogs(); return nil }
+func (c *ResetCmd) Run() error  { resetDevice(); return nil }
+
+// ── Port detection ────────────────────────────────────────────────────────────
+
+func findPort() string {
+	if cli.Port != "" {
+		return cli.Port
+	}
+	ports, _ := filepath.Glob(picoPortPattern)
+	if len(ports) == 0 {
+		logFatal("No device found at %s\nConnect the Badger and try again.\n", picoPortPattern)
+	}
+	if len(ports) > 1 {
+		logWarn("Multiple devices found; using %s. Use --port to specify.\n", ports[0])
+	}
+	return ports[0]
+}
+
+// ── mpremote helpers ──────────────────────────────────────────────────────────
+
+func mpremoteArgs(port string, args ...string) []string {
+	return append([]string{"connect", port}, args...)
+}
+
+func runMpremote(port string, args ...string) (string, error) {
+	if cli.DryRun {
+		logDetail("DRY RUN: mpremote %s\n", strings.Join(args, " "))
+		return "", nil
+	}
+	cmd := exec.Command("mpremote", mpremoteArgs(port, args...)...)
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+func mpremoteExec(port, code string) error {
+	if cli.DryRun {
+		logDetail("DRY RUN: exec %q\n", code)
+		return nil
+	}
+	cmd := exec.Command("mpremote", mpremoteArgs(port, "exec", code)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// ensureDir creates a directory on the device, ignoring "already exists" errors.
+func ensureDir(port, remotePath string) {
+	code := fmt.Sprintf(
+		"import os\ntry:\n    os.mkdir(%q)\nexcept OSError:\n    pass\n",
+		remotePath,
+	)
+	if err := mpremoteExec(port, code); err != nil {
+		logWarn("Could not ensure dir %s: %v\n", remotePath, err)
+	}
+}
+
+// copyFile copies a local file to a remote path on the device.
+func copyFile(port, localPath, remotePath string) error {
+	if cli.DryRun {
+		logDetail("DRY RUN: cp %s → :%s\n", localPath, remotePath)
+		return nil
+	}
+	cmd := exec.Command("mpremote", mpremoteArgs(port, "fs", "cp", localPath, ":"+remotePath)...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cp %s: %w\n%s", localPath, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// ── Upload (code) ─────────────────────────────────────────────────────────────
+
+// filesInDir returns all files recursively under dir (relative paths from dir root).
+func filesInDir(dir string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, path)
+		files = append(files, rel)
+		return nil
+	})
+	return files, err
+}
+
+// uploadIgnored returns true for files that should never be pushed.
+func uploadIgnored(rel string) bool {
+	base := filepath.Base(rel)
+	switch {
+	case base == ".DS_Store":
+		return true
+	case strings.HasSuffix(base, ".pyc"):
+		return true
+	case strings.Contains(rel, "__pycache__"):
+		return true
+	case strings.HasSuffix(base, ".local.json"):
+		return true
+	}
+	return false
+}
+
+func uploadFiles(force bool) {
+	port := findPort()
+	logInfo("Uploading to %s...\n", port)
+
+	// Source trees to push: examples → /examples, data → /data
+	type syncDir struct {
+		local  string
+		remote string
+	}
+	dirs := []syncDir{
+		{"badger_os/examples", "/examples"},
+		{"badger_os/badges", "/badges"},
+		{"badger_os/books", "/books"},
+		{"badger_os/icons", "/icons"},
+		{"badger_os/images", "/images"},
+	}
+
+	// Collect all files
+	type job struct {
+		local  string
+		remote string
+	}
+	var jobs []job
+	for _, d := range dirs {
+		files, err := filesInDir(d.local)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			logFatal("Failed to list %s: %v\n", d.local, err)
+		}
+		for _, rel := range files {
+			if uploadIgnored(rel) {
+				continue
+			}
+			local := filepath.Join(d.local, rel)
+			remote := d.remote + "/" + filepath.ToSlash(rel)
+			jobs = append(jobs, job{local, remote})
+		}
+	}
+
+	if len(jobs) == 0 {
+		logWarn("No files found to upload.\n")
+		return
+	}
+
+	// Ensure remote directories exist
+	remoteDirs := map[string]bool{}
+	for _, j := range jobs {
+		dir := filepath.Dir(j.remote)
+		if dir != "/" {
+			remoteDirs[dir] = true
+		}
+	}
+	for dir := range remoteDirs {
+		ensureDir(port, dir)
+	}
+
+	// Upload files with progress bar
+	bar := progressbar.NewOptions(len(jobs),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionSetDescription("Uploading"),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "=",
+			SaucerHead:    ">",
+			SaucerPadding: " ",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
+	)
+
+	failed := 0
+	for _, j := range jobs {
+		if err := copyFile(port, j.local, j.remote); err != nil {
+			logWarn("\nFailed: %v\n", err)
+			failed++
+		}
+		bar.Add(1)
+	}
+
+	fmt.Fprintln(os.Stderr)
+	if failed == 0 {
+		logSuccess("Upload complete: %d files pushed.\n", len(jobs))
+	} else {
+		logWarn("Upload complete with %d error(s). %d files pushed.\n", failed, len(jobs)-failed)
+	}
+}
+
+// ── Push data files ────────────────────────────────────────────────────────────
+
+func pushData() {
+	port := findPort()
+	logInfo("Pushing data files to %s...\n", port)
+
+	ensureDir(port, "/data")
+
+	files, err := filesInDir("badger_os/data")
+	if err != nil {
+		logFatal("Failed to list badger_os/data: %v\n", err)
+	}
+
+	pushed := 0
+	for _, rel := range files {
+		if uploadIgnored(rel) || strings.HasSuffix(rel, ".example") {
+			logDetail("skip %s\n", rel)
+			continue
+		}
+		local := filepath.Join("badger_os/data", rel)
+		remote := "/data/" + filepath.ToSlash(rel)
+		logInfo("  %s → %s\n", styleDim.Render(local), remote)
+		if err := copyFile(port, local, remote); err != nil {
+			logWarn("  Failed: %v\n", err)
+			continue
+		}
+		pushed++
+	}
+
+	logSuccess("Data push complete: %d files.\n", pushed)
+}
+
+// ── Tail logs ─────────────────────────────────────────────────────────────────
+
+func tailLogs() {
+	port := findPort()
+	logInfo("Streaming serial output from %s (Ctrl+C to stop)...\n", port)
+
+	// Ctrl+C for graceful exit
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	cmd := exec.Command("mpremote", "connect", port)
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		logFatal("Failed to open stdout pipe: %v\n", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		logFatal("Failed to start mpremote: %v\n", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// Colour Python tracebacks red for visibility
+			if strings.Contains(line, "Traceback") || strings.Contains(line, "Error:") {
+				fmt.Println(styleError.Render(line))
+			} else {
+				fmt.Println(line)
+			}
+		}
+	}()
+
+	select {
+	case <-sigCh:
+		cmd.Process.Kill()
+	case <-done:
+	}
+	cmd.Wait()
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+
+func resetDevice() {
+	port := findPort()
+	logInfo("Resetting %s...\n", port)
+	if _, err := runMpremote(port, "reset"); err != nil {
+		logErr("Reset failed: %v\n", err)
+		return
+	}
+	logSuccess("Device reset.\n")
+}
+
+// ── io.Discard alias for older Go ─────────────────────────────────────────────
+
+var _ io.Writer = io.Discard
+
+// ── main ──────────────────────────────────────────────────────────────────────
+
+func main() {
+	ctx := kong.Parse(&cli,
+		kong.Name("badger-push"),
+		kong.Description("Push code and data to Badger 2350 W."),
+		kong.UsageOnError(),
+		kong.ConfigureHelp(kong.HelpOptions{Compact: true}),
+	)
+	initLogger(cli.Verbose)
+	if err := ctx.Run(); err != nil {
+		logFatal("%v\n", err)
+	}
+}

@@ -1,0 +1,23 @@
+# Local config — never commit real personal data
+badger_os/data/*.local.json
+badger_os/badges/badge.txt
+badger_os/badges/*.jpg
+badger_os/badges/*.png
+
+# Device secrets
+badger_os/WIFI_CONFIG.py
+
+# Go build artifacts
+script/badger-push
+script/badger-push-darwin-*
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Claude Code
+.claude/
+
+# Python
+__pycache__/
+*.pyc
