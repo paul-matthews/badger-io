@@ -347,6 +347,9 @@
         setSavesEnabled(true);
         clearBanner();
         await loadCardFromDevice();
+        await loadListFromDevice(urlChar, 'urls', 'url', LS_URLS);
+        await loadListFromDevice(topicsChar, 'topics', 'topic', LS_TOPICS);
+        showBanner('success', 'Loaded current config from the badge.');
       } catch (err) {
         setStatus('error', err.name === 'NotFoundError' ? 'No device selected.' : ('Error: ' + err.message));
         connectBtn.disabled = false;
@@ -418,6 +421,21 @@
         populateCard(card);
         localStorage.setItem(LS_CARD, JSON.stringify(card));
       } catch (e) { /* device may have only an empty stub */ }
+    }
+
+    // Restore a slot list from the device. Device wins when it has data;
+    // an empty/garbled value leaves local edits untouched.
+    async function loadListFromDevice(char, key, prefix, lsKey) {
+      try {
+        const dv = await char.readValue();
+        const s = new TextDecoder().decode(dv).replace(/\0+$/, '').trim();
+        if (!s) return;
+        const arr = (JSON.parse(s)[key]) || [];
+        if (arr.length) {
+          writeSlots(prefix, arr);
+          localStorage.setItem(lsKey, JSON.stringify(arr));
+        }
+      } catch (e) { /* keep localStorage values */ }
     }
 
     function onDisconnected() {

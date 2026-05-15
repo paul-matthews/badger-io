@@ -147,17 +147,30 @@ _ble.irq(_ble_irq)
         (_TOPICS_UUID, _FLAG_READ | _FLAG_WRITE),
     )),
 ))
-for _h in (_url_handle, _card_handle, _topics_handle):
-    _ble.gatts_write(_h, b'\x00' * 512)
+# Pre-allocate GATT buffers (default is tiny). URLs/topics hold the whole
+# list for read-back/restore, so they need more room than card.
+_BUFS = {_url_handle: 1024, _card_handle: 512, _topics_handle: 1024}
+for _h, _sz in _BUFS.items():
+    _ble.gatts_write(_h, b'\x00' * _sz)
 
-# Expose current card JSON so the web app can pre-fill its form on connect.
-# Pad to 512 so the GATT buffer keeps full capacity for later large writes.
-_card_now = _read_text(CARD_PATH,
-                       "/system/apps/card/card.local.json",
-                       "/system/apps/card/card.json")
-if _card_now:
-    _cb = _card_now.encode("utf-8")[:512]
-    _ble.gatts_write(_card_handle, _cb + b'\x00' * (512 - len(_cb)))
+
+def _expose(handle, *paths):
+    """Publish the current config JSON as the characteristic's readable
+    value so the web app can restore state on connect. Padded to the full
+    buffer so write capacity is preserved."""
+    txt = _read_text(*paths)
+    sz = _BUFS[handle]
+    b = txt.encode("utf-8")[:sz] if txt else b''
+    _ble.gatts_write(handle, b + b'\x00' * (sz - len(b)))
+
+
+_CARD_READ_PATHS = (CARD_PATH,
+                    "/system/apps/card/card.local.json",
+                    "/system/apps/card/card.json")
+
+_expose(_url_handle, URLS_PATH, "urls.json")
+_expose(_card_handle, *_CARD_READ_PATHS)
+_expose(_topics_handle, TOPICS_PATH)
 
 _adv_data  = b'\x02\x01\x06' + bytes([0x11, 0x07]) + bytes(_SVC_UUID)
 _resp_data = bytes([0x0a, 0x09]) + b'Badger-IO'
@@ -319,15 +332,18 @@ def update():
         urls = _load_urls()
         if state["idx"] >= len(urls):
             state["idx"] = 0
+        _expose(_url_handle, URLS_PATH, "urls.json")
         _needs_redraw = True
 
     if _pending_card is not None:
         raw, _pending_card = _pending_card, None
         _save_raw(CARD_PATH, raw)
+        _expose(_card_handle, *_CARD_READ_PATHS)
 
     if _pending_topic_items:
         while _pending_topic_items:
             _save_item(TOPICS_PATH, "topics", _pending_topic_items.pop(0))
+        _expose(_topics_handle, TOPICS_PATH)
 
     if badge.pressed(BUTTON_B):
         if _ble_active:
