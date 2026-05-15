@@ -119,7 +119,7 @@ type UploadCmd struct {
 }
 
 type DiskCmd struct {
-	Keep   []string `help:"Factory app names to preserve (default: removes badge, the_compendium, hydrate, mass_storage, list)." name:"keep"`
+	Keep   []string `help:"Factory app names to preserve (default: removes badge, the_compendium, hydrate, mass_storage, list, gallery)." name:"keep"`
 	Manual bool     `help:"Skip the automatic trigger; wait for a manual RESET double-tap instead." name:"manual"`
 }
 type DataCmd struct {
@@ -268,7 +268,7 @@ const diskVolume = "/Volumes/BADGER"
 // defaultFactoryAppsToRemove lists built-in apps stripped from the device on
 // every deploy (disk path via rsync; upload path via removeFactoryAppsMpremote).
 // Pass --keep <name> on a disk deploy to preserve any of them.
-var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", "mass_storage", "list"}
+var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", "mass_storage", "list", "gallery"}
 
 // triggerDiskMode asks the running firmware to expose its FAT filesystem as a
 // USB mass-storage device — the same state a RESET double-tap reaches
