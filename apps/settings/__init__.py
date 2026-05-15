@@ -331,7 +331,7 @@ def update():
         while _pending_topic_items:
             _save_item(TOPICS_PATH, "topics", _pending_topic_items.pop(0))
 
-        if _ble:
+        if _ble and _BUFS:
             _expose(_url_handle, URLS_PATH, URLS_SEED)
             _expose(_card_handle, *_CARD_READ_PATHS)
             _expose(_topics_handle, TOPICS_PATH)
