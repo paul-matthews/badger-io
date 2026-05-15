@@ -96,7 +96,7 @@ type UploadCmd struct {
 }
 
 type DiskCmd struct {
-	Keep []string `help:"Factory app names to preserve (default: removes the_compendium, hydrate, mass_storage)." name:"keep"`
+	Keep []string `help:"Factory app names to preserve (default: removes badge, the_compendium, hydrate, mass_storage, list)." name:"keep"`
 }
 type DataCmd struct {
 	Apps []string `arg:"" optional:"" name:"app" help:"App names to push data for (default: all apps)."`
@@ -206,7 +206,7 @@ const diskVolume = "/Volumes/BADGER"
 
 // defaultFactoryAppsToRemove lists built-in apps stripped from the device on
 // every disk deploy. Pass --keep <name> to preserve any of them.
-var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", "mass_storage"}
+var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", "mass_storage", "list"}
 
 // deployDisk rsyncs all app directories to the Badger USB Disk Mode volume and
 // removes unwanted factory apps.
