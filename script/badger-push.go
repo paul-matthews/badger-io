@@ -198,6 +198,32 @@ func copyFile(port, localPath, remotePath string) error {
 	return nil
 }
 
+// removeFactoryAppsMpremote deletes defaultFactoryAppsToRemove from the device
+// over the mpremote/REPL connection. The disk path uses rsync to strip these;
+// the upload path needs an explicit recursive delete. /system is remounted
+// read-write in the same exec session (same trick copyFile uses).
+func removeFactoryAppsMpremote(port string) {
+	if len(defaultFactoryAppsToRemove) == 0 {
+		return
+	}
+	quoted := make([]string, len(defaultFactoryAppsToRemove))
+	for i, n := range defaultFactoryAppsToRemove {
+		quoted[i] = fmt.Sprintf("%q", n)
+	}
+	code := remountSystemCode +
+		"def _rt(p):\n" +
+		" try:\n  m=os.stat(p)[0]\n except OSError:\n  return\n" +
+		" if m & 0x4000:\n" +
+		"  for e in os.listdir(p):\n   _rt(p+'/'+e)\n" +
+		"  try:\n   os.rmdir(p)\n  except OSError:\n   pass\n" +
+		" else:\n  try:\n   os.remove(p)\n  except OSError:\n   pass\n" +
+		fmt.Sprintf("for n in (%s,):\n _rt('/system/apps/'+n)\n", strings.Join(quoted, ", "))
+	logInfo("Removing factory apps: %s\n", strings.Join(defaultFactoryAppsToRemove, ", "))
+	if err := mpremoteExec(port, code); err != nil {
+		logWarn("Factory app removal failed (device may need manual cleanup): %v\n", err)
+	}
+}
+
 // ── USB Disk Mode deploy ──────────────────────────────────────────────────────
 
 // diskVolume is the macOS mount point of the Badger USB Disk Mode volume.
@@ -442,6 +468,11 @@ func uploadFiles(force bool, filterApps []string) {
 	} else {
 		logWarn("Upload complete with %d error(s). %d files pushed.\n", failed, len(jobs)-failed)
 	}
+
+	// The disk path strips factory apps via rsync; the mpremote path has no
+	// equivalent, so remove them explicitly here (else e.g. the stock "list"
+	// app lingers after a normal `badger-push`).
+	removeFactoryAppsMpremote(port)
 
 	// Reset to restore the /system/ read-only mount (each copyFile remounted it).
 	logInfo("Resetting device...\n")
