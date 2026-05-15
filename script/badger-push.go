@@ -82,30 +82,36 @@ var cli struct {
 	Verbose int    `short:"v" type:"counter" help:"Increase verbosity (-v, -vv)."`
 
 	Upload UploadCmd `cmd:"" default:"withargs" help:"Push app code via mpremote (requires REPL access)."`
-	Disk   DiskCmd   `cmd:"" help:"Deploy apps via USB Disk Mode (double-tap RESET → BADGER volume)."`
+	Disk   DiskCmd   `cmd:"" help:"Deploy all apps via USB Disk Mode (double-tap RESET → BADGER volume)."`
 	Data   DataCmd   `cmd:"" help:"Push data files (JSON) via mpremote."`
+	Docs   DocsCmd   `cmd:"" help:"Serve docs/ locally on localhost:8080 for BLE testing (use Chrome/Edge)."`
 	Logs   LogsCmd   `cmd:"" help:"Stream serial output from device."`
 	Reset  ResetCmd  `cmd:"" help:"Soft-reset the device."`
 	Flash  FlashCmd  `cmd:"" help:"Flash UF2 firmware via BOOTSEL mass-storage mode."`
 }
 
 type UploadCmd struct {
-	Force bool `short:"f" help:"Re-upload all files, skipping nothing."`
+	Force bool     `short:"f" help:"Re-upload all files, skipping nothing."`
+	Apps  []string `arg:"" optional:"" name:"app" help:"App names to push (default: all apps)."`
 }
 
 type DiskCmd struct {
 	Keep []string `help:"Factory app names to preserve (default: removes the_compendium, hydrate, mass_storage)." name:"keep"`
 }
-type DataCmd struct{}
+type DataCmd struct {
+	Apps []string `arg:"" optional:"" name:"app" help:"App names to push data for (default: all apps)."`
+}
+type DocsCmd struct{}
 type LogsCmd struct{}
 type ResetCmd struct{}
 type FlashCmd struct {
 	UF2 string `arg:"" help:"Path to .uf2 firmware file." type:"existingfile"`
 }
 
-func (c *UploadCmd) Run() error { uploadFiles(c.Force); return nil }
+func (c *UploadCmd) Run() error { uploadFiles(c.Force, c.Apps); return nil }
 func (c *DiskCmd) Run() error   { deployDisk(c.Keep); return nil }
-func (c *DataCmd) Run() error   { pushData(); return nil }
+func (c *DataCmd) Run() error   { pushData(c.Apps); return nil }
+func (c *DocsCmd) Run() error   { serveDocs(); return nil }
 func (c *LogsCmd) Run() error   { tailLogs(); return nil }
 func (c *ResetCmd) Run() error  { resetDevice(); return nil }
 func (c *FlashCmd) Run() error  { flashFirmware(c.UF2); return nil }
@@ -193,8 +199,6 @@ var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", 
 
 // deployDisk copies app directories to the Badger USB Disk Mode volume and
 // removes unwanted factory apps.
-// macOS 15 FSKit blocks shell cp/Go file I/O to FAT32 volumes, so we use
-// AppleScript via osascript to drive Finder (which has the correct entitlements).
 func deployDisk(keep []string) {
 	keepSet := make(map[string]bool, len(keep))
 	for _, k := range keep {
@@ -336,8 +340,32 @@ func uploadIgnored(rel string) bool {
 	return false
 }
 
-func uploadFiles(force bool) {
-	if !confirmPrompt("This will overwrite the device filesystem. Continue?") {
+// appNameFromRel returns the top-level directory component of a relative path
+// (e.g. "url_share/__init__.py" → "url_share").
+func appNameFromRel(rel string) string {
+	parts := strings.SplitN(filepath.ToSlash(rel), "/", 2)
+	return parts[0]
+}
+
+// inFilter returns true if name is in filter, or filter is empty (match all).
+func inFilter(filter []string, name string) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	for _, f := range filter {
+		if f == name {
+			return true
+		}
+	}
+	return false
+}
+
+func uploadFiles(force bool, filterApps []string) {
+	prompt := "This will overwrite all apps on the device. Continue?"
+	if len(filterApps) > 0 {
+		prompt = fmt.Sprintf("Push [%s] to device. Continue?", strings.Join(filterApps, ", "))
+	}
+	if !confirmPrompt(prompt) {
 		logInfo("Aborted.\n")
 		return
 	}
@@ -354,7 +382,7 @@ func uploadFiles(force bool) {
 		{"apps", "/system/apps"},
 	}
 
-	// Collect all files
+	// Collect files, filtered to named apps if specified.
 	type job struct {
 		local  string
 		remote string
@@ -370,6 +398,9 @@ func uploadFiles(force bool) {
 		}
 		for _, rel := range files {
 			if uploadIgnored(rel) {
+				continue
+			}
+			if !inFilter(filterApps, appNameFromRel(rel)) {
 				continue
 			}
 			local := filepath.Join(d.local, rel)
@@ -428,7 +459,7 @@ func uploadFiles(force bool) {
 
 // ── Push data files ────────────────────────────────────────────────────────────
 
-func pushData() {
+func pushData(filterApps []string) {
 	port := findPort()
 	logInfo("Pushing data files to %s...\n", port)
 
@@ -443,6 +474,9 @@ func pushData() {
 		if uploadIgnored(rel) || !strings.HasSuffix(rel, ".json") {
 			continue
 		}
+		if !inFilter(filterApps, appNameFromRel(rel)) {
+			continue
+		}
 		local := filepath.Join("apps", rel)
 		remote := "/system/apps/" + filepath.ToSlash(rel)
 		logInfo("  %s → %s\n", styleDim.Render(local), remote)
@@ -454,6 +488,35 @@ func pushData() {
 	}
 
 	logSuccess("Data push complete: %d files.\n", pushed)
+}
+
+// ── Serve docs ────────────────────────────────────────────────────────────────
+
+func serveDocs() {
+	docsDir := "docs"
+	if _, err := os.Stat(docsDir); os.IsNotExist(err) {
+		docsDir = filepath.Join("..", "docs")
+	}
+	abs, err := filepath.Abs(docsDir)
+	if err != nil {
+		logFatal("Could not resolve docs/ path: %v\n", err)
+	}
+	if _, err := os.Stat(abs); err != nil {
+		logFatal("docs/ directory not found (looked at %s)\n", abs)
+	}
+
+	const httpPort = "8080"
+	logSuccess("Serving %s at http://localhost:%s\n", abs, httpPort)
+	logInfo("Open in Chrome or Edge — Web Bluetooth requires a secure context (localhost).\n")
+	logInfo("Press Ctrl+C to stop.\n")
+
+	cmd := exec.Command("python3", "-m", "http.server", httpPort)
+	cmd.Dir = abs
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		logErr("Server exited: %v\n", err)
+	}
 }
 
 // ── Tail logs ─────────────────────────────────────────────────────────────────

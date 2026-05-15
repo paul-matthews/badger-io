@@ -12,22 +12,14 @@ After any significant finding — an API quirk, a deploy technique, a device beh
 - `docs/` — GitHub Pages companion web app (url_share BLE page)
 - `script/badger-push.go` — Go CLI for pushing code, data, logs, reset
 
-## Deploy
+## Toolchain
+`badger-push` must be installed to `~/bin/` before use:
 ```bash
-cd script && go run badger-push.go          # upload apps/
-cd script && go run badger-push.go data     # push JSON state only
-cd script && go run badger-push.go logs     # tail serial
-cd script && go run badger-push.go reset    # soft reset
+script/install.sh   # re-run whenever badger-push.go changes on main
 ```
-`docs/` is served via GitHub Pages — push to origin to deploy.
+All deploy commands below assume `badger-push` is on PATH.
 
-## Device recovery (factory reset)
-1. Hold BOOTSEL button while plugging in USB → device mounts as **RP2350**
-2. Copy the v1.0.0 UF2 to the volume
-3. Device reboots automatically into original firmware + filesystem
-4. Re-deploy custom apps with `badger-push disk`
-
-UF2 URL: `https://github.com/pimoroni/badger2350/releases/download/v1.0.0/pimoroni-badger2350w-v1.0.0-micropython.uf2`
+## Deploy — device apps
 
 ## API reference
 Full reference at `docs/badgeware-api-reference.md` — compiled from github.com/pimoroni/badgeware-docs.
