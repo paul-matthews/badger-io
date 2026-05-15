@@ -82,7 +82,7 @@ var cli struct {
 	Verbose int    `short:"v" type:"counter" help:"Increase verbosity (-v, -vv)."`
 
 	Upload UploadCmd `cmd:"" default:"withargs" help:"Push app code via mpremote (requires REPL access)."`
-	Disk   DiskCmd   `cmd:"" help:"Deploy apps via USB Disk Mode (double-tap RESET → Badger2350 volume)."`
+	Disk   DiskCmd   `cmd:"" help:"Deploy apps via USB Disk Mode (double-tap RESET → BADGER volume)."`
 	Data   DataCmd   `cmd:"" help:"Push data files (JSON) via mpremote."`
 	Logs   LogsCmd   `cmd:"" help:"Stream serial output from device."`
 	Reset  ResetCmd  `cmd:"" help:"Soft-reset the device."`
@@ -180,19 +180,23 @@ func copyFile(port, localPath, remotePath string) error {
 
 // ── USB Disk Mode deploy ──────────────────────────────────────────────────────
 
-const diskVolume = "/Volumes/Badger2350"
+// diskVolume is the macOS mount point of the Badger USB Disk Mode volume.
+// Update this if a firmware release changes the FAT label.
+const diskVolume = "/Volumes/BADGER"
 
-// deployDisk copies app directories to the Badger2350 USB Disk Mode volume.
+// deployDisk copies app directories to the Badger USB Disk Mode volume.
 // macOS 15 FSKit blocks shell cp/Go file I/O to FAT32 volumes, so we use
 // AppleScript via osascript to drive Finder (which has the correct entitlements).
 func deployDisk() {
+	volName := filepath.Base(diskVolume)
+
 	// Check or wait for the volume.
 	if _, err := os.Stat(diskVolume); err != nil {
-		logInfo("Badger2350 volume not found.\n")
+		logInfo("%s volume not found.\n", volName)
 		logInfo("  1. Connect the Badger via USB-C.\n")
 		logInfo("  2. Double-tap the RESET button on the back.\n")
-		logInfo("  3. Wait for a disk named \"Badger2350\" to appear.\n")
-		fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for Badger2350 volume"))
+		logInfo("  3. Wait for a disk named %q to appear.\n", volName)
+		fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for "+volName+" volume"))
 		for i := 0; i < 60; i++ {
 			if _, err := os.Stat(diskVolume); err == nil {
 				break
@@ -202,7 +206,7 @@ func deployDisk() {
 		}
 		fmt.Fprintln(os.Stderr)
 		if _, err := os.Stat(diskVolume); err != nil {
-			logFatal("Timed out — Badger2350 volume not found.\n")
+			logFatal("Timed out — %s volume not found.\n", volName)
 		}
 	}
 	logSuccess("Found %s\n", diskVolume)
@@ -234,7 +238,7 @@ func deployDisk() {
 		localPath, _ := filepath.Abs(filepath.Join(appsDir, name))
 		remotePath := diskVolume + "/apps"
 
-		logInfo("  Copying %s → Badger2350/apps/\n", name)
+		logInfo("  Copying %s → %s/apps/\n", name, volName)
 
 		// Delete the existing app directory on the volume first (if present),
 		// then duplicate the local directory.  Both operations go through Finder
@@ -258,7 +262,7 @@ end tell
 		}
 	}
 
-	logSuccess("Apps copied. Safely unmount the Badger2350 volume now (Finder → eject).\n")
+	logSuccess("Apps copied. Safely unmount the %s volume now (Finder → eject).\n", volName)
 	logInfo("The badge will reboot into the menu when unmounted.\n")
 }
 
