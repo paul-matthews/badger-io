@@ -2,7 +2,7 @@ import sys
 import os
 import json
 import machine
-from badgeware import run, State
+from badgeware import State
 
 sys.path.insert(0, "/system/apps/schedule")
 os.chdir("/system/apps/schedule")
@@ -29,16 +29,12 @@ state = {"offset": 0}
 State.load("schedule", state)
 
 _rtc = machine.RTC()
-
-_last_up = False
-_last_dn = False
 _last_minute = -1
 _needs_redraw = True
 
 
 def _now_hhmm():
     dt = _rtc.datetime()
-    # (year, month, day, weekday, hour, minute, second, subsecond)
     date_str = "{:04d}-{:02d}-{:02d}".format(dt[0], dt[1], dt[2])
     return date_str, dt[4] * 60 + dt[5]
 
@@ -102,85 +98,80 @@ def _draw_session(y, label, session):
 
 
 def update():
-    global _last_up, _last_dn, _last_minute, _needs_redraw
+    global _last_minute, _needs_redraw
 
-    up_now = io.BUTTON_UP in io.pressed
-    dn_now = io.BUTTON_DOWN in io.pressed
-    up_edge = up_now and not _last_up
-    dn_edge = dn_now and not _last_dn
-    _last_up = up_now
-    _last_dn = dn_now
+    badge.default_clear = None
+
+    up = badge.pressed(BUTTON_UP)
+    dn = badge.pressed(BUTTON_DOWN)
 
     date_str, hhmm = _now_hhmm()
     if hhmm != _last_minute:
         _last_minute = hhmm
         _needs_redraw = True
 
-    if up_edge or dn_edge:
+    if up or dn:
         _needs_redraw = True
 
-    if not _needs_redraw:
-        return
-    _needs_redraw = False
+    if _needs_redraw:
+        _needs_redraw = False
 
-    relevant = _relevant(date_str, hhmm)
+        relevant = _relevant(date_str, hhmm)
 
-    if relevant:
-        if up_edge:
-            state["offset"] = (state["offset"] - 1) % len(relevant)
-            State.modify("schedule", state)
-        elif dn_edge:
-            state["offset"] = (state["offset"] + 1) % len(relevant)
-            State.modify("schedule", state)
+        if relevant:
+            if up:
+                state["offset"] = (state["offset"] - 1) % len(relevant)
+                State.modify("schedule", state)
+            elif dn:
+                state["offset"] = (state["offset"] + 1) % len(relevant)
+                State.modify("schedule", state)
 
-    screen.pen = color.white
-    screen.clear()
+        screen.pen = color.white
+        screen.clear()
 
-    # Header
-    screen.pen = color.black
-    screen.shape(shape.rectangle(0, 0, W, 26))
-    screen.pen = color.white
-    screen.font = small
-    screen.text(CONFERENCE, 8, 8)
-    time_str = "{:02d}:{:02d}".format(hhmm // 60, hhmm % 60)
-    tw, _ = screen.measure_text(time_str)
-    screen.text(time_str, W - tw - 8, 8)
-
-    if not relevant:
         screen.pen = color.black
+        screen.shape(shape.rectangle(0, 0, W, 26))
+        screen.pen = color.white
         screen.font = small
-        screen.text("No highlighted sessions right now.", 8, 50)
-        screen.text("Sessions shown within 60 min", 8, 68)
-        screen.text("of their start time.", 8, 84)
-    else:
-        offset = state["offset"] % len(relevant)
-        visible = relevant[offset:offset + 2]
-        y = 28
-        for label, sess in visible:
-            _draw_session(y, label, sess)
-            y += 42
+        screen.text(CONFERENCE, 8, 8)
+        time_str = "{:02d}:{:02d}".format(hhmm // 60, hhmm % 60)
+        tw, _ = screen.measure_text(time_str)
+        screen.text(time_str, W - tw - 8, 8)
 
-        if len(relevant) > 1:
-            screen.pen = color.dark_grey
+        if not relevant:
+            screen.pen = color.black
             screen.font = small
-            screen.text("{}/{}".format(offset + 1, len(relevant)), W - 28, FOOTER_TEXT_Y)
+            screen.text("No highlighted sessions right now.", 8, 50)
+            screen.text("Sessions shown within 60 min", 8, 68)
+            screen.text("of their start time.", 8, 84)
+        else:
+            offset = state["offset"] % len(relevant)
+            visible = relevant[offset:offset + 2]
+            y = 28
+            for label, sess in visible:
+                _draw_session(y, label, sess)
+                y += 42
 
-    screen.pen = color.dark_grey
-    screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
-    screen.font = small
-    screen.pen = color.black
-    screen.text("UP/DN: scroll", 8, FOOTER_TEXT_Y)
-    hw, _ = screen.measure_text("HOME: menu")
-    screen.text("HOME: menu", W - hw - 8, FOOTER_TEXT_Y)
+            if len(relevant) > 1:
+                screen.pen = color.dark_grey
+                screen.font = small
+                screen.text("{}/{}".format(offset + 1, len(relevant)), W - 28, FOOTER_TEXT_Y)
 
+        screen.pen = color.dark_grey
+        screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
+        screen.font = small
+        screen.pen = color.black
+        screen.text("UP/DN: scroll", 8, FOOTER_TEXT_Y)
+        hw, _ = screen.measure_text("HOME: menu")
+        screen.text("HOME: menu", W - hw - 8, FOOTER_TEXT_Y)
 
-def init():
-    pass
+        badge.update()
+
+    wait_for_button_or_alarm(timeout=30000)
 
 
 def on_exit():
     pass
 
 
-if __name__ == "__main__":
-    run(update)
+run(update)

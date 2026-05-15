@@ -2,12 +2,12 @@ import sys
 import os
 import json
 import qrcode
-from badgeware import run, State
+from badgeware import State
 
 sys.path.insert(0, "/system/apps/card")
 os.chdir("/system/apps/card")
 
-screen.antialias = image.X2
+screen.antialias = screen.X2
 
 _config = {}
 for _path in ("card.local.json", "card.json"):
@@ -40,10 +40,6 @@ large = rom_font.ignore
 
 state = {"view": 0}
 State.load("card", state)
-
-_last_up = False
-_last_dn = False
-_last_b = False
 
 _qr = None
 if CONTACT_URL:
@@ -104,7 +100,7 @@ def draw_contact_view():
     screen.text("linkedin.com/in/" + LINKEDIN, 8, linkedin_y)
     screen.text("github.com/" + GITHUB, 8, github_y)
 
-    _footer("B: share QR", "HOME: menu")
+    _footer("B: back", "HOME: menu")
 
 
 def draw_qr_view():
@@ -138,31 +134,34 @@ def draw_qr_view():
 
 _views = [draw_name_view, draw_contact_view, draw_qr_view]
 
-
-def init():
-    pass
+_needs_redraw = True
 
 
 def update():
-    global _last_up, _last_dn, _last_b
-    up_now = io.BUTTON_UP in io.pressed
-    dn_now = io.BUTTON_DOWN in io.pressed
-    b_now = io.BUTTON_B in io.pressed
+    global _needs_redraw
 
-    if up_now and not _last_up and state["view"] != 2:
-        state["view"] = (state["view"] - 1) % 2
-        State.modify("card", state)
-    elif dn_now and not _last_dn and state["view"] != 2:
-        state["view"] = (state["view"] + 1) % 2
-        State.modify("card", state)
-    elif b_now and not _last_b:
+    badge.default_clear = None
+
+    if badge.pressed(BUTTON_B):
         state["view"] = 0 if state["view"] == 2 else 2
         State.modify("card", state)
-    _last_up = up_now
-    _last_dn = dn_now
-    _last_b = b_now
+        _needs_redraw = True
+    elif state["view"] != 2:
+        if badge.pressed(BUTTON_UP):
+            state["view"] = (state["view"] - 1) % 2
+            State.modify("card", state)
+            _needs_redraw = True
+        elif badge.pressed(BUTTON_DOWN):
+            state["view"] = (state["view"] + 1) % 2
+            State.modify("card", state)
+            _needs_redraw = True
 
-    _views[state["view"]]()
+    if _needs_redraw:
+        _needs_redraw = False
+        _views[state["view"]]()
+        badge.update()
+
+    wait_for_button_or_alarm()
 
 
 def on_exit():
@@ -171,5 +170,4 @@ def on_exit():
         State.modify("card", state)
 
 
-if __name__ == "__main__":
-    run(update)
+run(update)

@@ -3,7 +3,7 @@ import os
 import gc
 import bluetooth
 import qrcode
-from badgeware import run, State
+from badgeware import State
 
 sys.path.insert(0, "/system/apps/url_share")
 os.chdir("/system/apps/url_share")
@@ -49,7 +49,6 @@ _ble.irq(_ble_irq)
 ))
 _ble.gatts_write(_url_handle, b'\x00' * 512)
 
-# Advertising: flags + 128-bit UUID in adv_data; name in scan response
 _adv_data  = b'\x02\x01\x06' + bytes([0x11, 0x07]) + bytes(_SVC_UUID)
 _resp_data = bytes([0x0a, 0x09]) + b'Badger-IO'
 
@@ -152,32 +151,24 @@ def draw_url(url):
 # ── App loop ──────────────────────────────────────────────────────────────────
 
 _ble_active   = False
-_last_b       = False
 _needs_redraw = True
 
 
-def init():
-    pass
-
-
 def update():
-    global _ble_active, _last_b, _needs_redraw, _pending_url
+    global _ble_active, _needs_redraw, _pending_url
 
-    b_now = io.BUTTON_B in io.pressed
-    b_edge = b_now and not _last_b
-    _last_b = b_now
+    badge.default_clear = None
 
     if _pending_url is not None:
         url = _pending_url
         _pending_url = None
-        print("url_share: received", url)
         _ble_active = False
         _stop_advertising()
         state["url"] = url
         State.modify("url_share", state)
         _needs_redraw = True
 
-    elif b_edge:
+    elif badge.pressed(BUTTON_B):
         if state["url"]:
             state["url"] = ""
             State.modify("url_share", state)
@@ -189,7 +180,7 @@ def update():
                 _start_advertising()
                 _ble_active = True
             except Exception as e:
-                print("url_share: gap_advertise failed:", type(e).__name__, str(e))
+                print("url_share: gap_advertise failed:", e)
         _needs_redraw = True
 
     if _needs_redraw:
@@ -201,11 +192,13 @@ def update():
         else:
             draw_idle()
 
+    badge.update()
+    wait_for_button_or_alarm()
+
 
 def on_exit():
     if _ble_active:
         _stop_advertising()
 
 
-if __name__ == "__main__":
-    run(update)
+run(update)
