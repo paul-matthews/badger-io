@@ -20,13 +20,12 @@ for _path in ("/state/cfg_topics.json", "topics.json"):
 topics = _config.get("topics", [])
 
 small = rom_font.smart
+large = rom_font.ignore
 W = screen.width
 H = screen.height
 
-HEADER_H = 26
 FOOTER_LINE_Y = H - 18
 FOOTER_TEXT_Y = H - 12
-CONTENT_H = FOOTER_LINE_Y - HEADER_H
 
 state = {"idx": 0}
 State.load("topics", state)
@@ -34,15 +33,7 @@ State.load("topics", state)
 _needs_redraw = True
 
 
-def _header(label):
-    screen.pen = color.black
-    screen.shape(shape.rectangle(0, 0, W, HEADER_H))
-    screen.pen = color.white
-    screen.font = small
-    screen.text(label, 8, 8)
-
-
-def _footer(left, right=None):
+def _footer(left, right="HOME: menu"):
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
     screen.font = small
@@ -53,16 +44,27 @@ def _footer(left, right=None):
         screen.text(right, W - rw - 8, FOOTER_TEXT_Y)
 
 
-def draw_empty():
-    screen.pen = color.white
-    screen.clear()
-    _header("Ask Me About")
-    screen.pen = color.black
-    screen.font = small
-    screen.text("No topics yet.", 8, 56)
-    screen.text("Configure via the", 8, 76)
-    screen.text("URL Share app.", 8, 92)
-    _footer("", "HOME: menu")
+def _wrap(s, max_w):
+    """Greedy word wrap at the current font; falls back to char split."""
+    words = s.split(" ")
+    lines = []
+    cur = ""
+    for word in words:
+        trial = word if not cur else cur + " " + word
+        tw, _ = screen.measure_text(trial)
+        if tw <= max_w or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = word
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def _line_h():
+    _, h = screen.measure_text("Ag")
+    return h + 4
 
 
 def draw_topic(idx):
@@ -73,39 +75,62 @@ def draw_topic(idx):
     screen.pen = color.white
     screen.clear()
 
-    counter = "{}/{}".format(idx + 1, len(topics))
-    screen.pen = color.black
-    screen.shape(shape.rectangle(0, 0, W, HEADER_H))
-    screen.pen = color.white
-    screen.font = small
-    cw, _ = screen.measure_text(counter)
-    screen.text(label, 8, 8)
-    screen.text(counter, W - cw - 8, 8)
-
+    # ── Big QR on the right ──────────────────────────────────────────────
+    qr_x = W
     if url:
         gc.collect()
         code = qrcode.QRCode()
         code.set_text(url)
-        w, _ = code.get_size()
-        cell_size = max(1, min(CONTENT_H, 120) // w)
-        total = cell_size * w
-        ox = (W - total) // 2
-        oy = HEADER_H + (CONTENT_H - total) // 2
+        qw, _ = code.get_size()
+        cell = max(1, min(FOOTER_LINE_Y - 8, 152) // qw)
+        total = cell * qw
+        qr_x = W - 6 - total
+        qr_y = (FOOTER_LINE_Y - total) // 2
         screen.pen = color.white
-        screen.shape(shape.rectangle(ox, oy, total, total))
+        screen.shape(shape.rectangle(qr_x, qr_y, total, total))
         screen.pen = color.black
-        for x in range(w):
-            for y in range(w):
+        for x in range(qw):
+            for y in range(qw):
                 if code.get_module(x, y):
                     screen.shape(shape.rectangle(
-                        ox + x * cell_size, oy + y * cell_size,
-                        cell_size, cell_size))
+                        qr_x + x * cell, qr_y + y * cell, cell, cell))
     else:
-        screen.pen = color.black
-        screen.font = small
-        screen.text("(no URL set)", 8, HEADER_H + 30)
+        qr_x = W - 6
 
-    _footer("UP/DN: page", "HOME: menu")
+    # ── "Ask me about" / <topic> on the left, large font ────────────────
+    lx = 8
+    lw = qr_x - lx - 10
+    screen.font = large
+    head = _wrap("Ask me about", lw)
+    body = _wrap(label, lw) if label else []
+    lh = _line_h()
+    block_h = (len(head) + len(body)) * lh + (8 if body else 0)
+    y = max(4, (FOOTER_LINE_Y - block_h) // 2)
+
+    screen.pen = color.black
+    for ln in head:
+        screen.text(ln, lx, y)
+        y += lh
+    y += 8
+    for ln in body:
+        screen.text(ln, lx, y)
+        y += lh
+
+    counter = "{}/{}".format(idx + 1, len(topics))
+    _footer(counter + "   UP/DN: page")
+
+
+def draw_empty():
+    screen.pen = color.white
+    screen.clear()
+    screen.font = large
+    screen.pen = color.black
+    lh = _line_h()
+    screen.text("Ask me about", 8, 28)
+    screen.font = small
+    screen.text("No topics yet.", 8, 28 + lh + 12)
+    screen.text("Configure via the URL Share app.", 8, 28 + lh + 32)
+    _footer("")
 
 
 def update():

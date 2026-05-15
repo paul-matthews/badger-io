@@ -200,7 +200,21 @@
     <label class="field"><span>Email</span><input type="email" id="c-email" autocomplete="off"></label>
     <label class="field"><span>LinkedIn handle</span><input type="text" id="c-linkedin" placeholder="yourhandle" autocomplete="off"></label>
     <label class="field"><span>GitHub handle</span><input type="text" id="c-github" placeholder="yourhandle" autocomplete="off"></label>
-    <label class="field"><span>Contact URL (vCard / contact link for the badge QR)</span><input type="url" id="c-contact_url" placeholder="https://..." autocomplete="off"></label>
+    <div class="field">
+      <span>Contact QR (shown in the card app's QR view)</span>
+      <div style="display:flex;gap:18px;margin:4px 0 2px;font-size:13px;color:var(--on-surface)">
+        <label style="display:flex;gap:6px;align-items:center;font-weight:400;margin:0">
+          <input type="radio" name="qrmode" value="vcard" onchange="onQrMode()"> vCard — scan adds contact
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;font-weight:400;margin:0">
+          <input type="radio" name="qrmode" value="url" onchange="onQrMode()"> Raw URL
+        </label>
+      </div>
+    </div>
+    <label class="field" id="contact-url-row"><span>Contact URL</span><input type="url" id="c-contact_url" placeholder="https://..." autocomplete="off" oninput="updateQrPreview()"></label>
+    <label class="field" id="vcard-preview-row"><span>vCard preview (generated from the fields above — encoded into the QR)</span>
+      <textarea id="vcard-preview" rows="8" readonly style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid var(--outline);border-radius:8px;background:#f1f3f4;color:var(--secondary);resize:vertical"></textarea>
+    </label>
     <div class="save-row">
       <button class="btn btn-primary" id="save-card" onclick="saveCard()" disabled>Save Card to Badge</button>
       <span class="hint" style="margin:0">Auto-loaded from the badge on connect.</span>
@@ -224,7 +238,9 @@
     const TOPICS_CHAR_UUID = 'ba5d4e57-0000-0000-0000-000000000004';
     const SLOTS = 8;
     const LS_URLS = 'badger_urls', LS_CARD = 'badger_card', LS_TOPICS = 'badger_topics';
+    const LS_QRMODE = 'badger_card_qrmode';
     const CARD_FIELDS = ['name','company','role','email','linkedin','github','contact_url'];
+    const VCARD_FIELDS = ['name','company','role','email','linkedin','github'];
 
     let device = null, server = null;
     let urlChar = null, cardChar = null, topicsChar = null;
@@ -300,8 +316,8 @@
       } catch (e) {}
       try {
         const card = JSON.parse(localStorage.getItem(LS_CARD) || '{}');
-        CARD_FIELDS.forEach(f => { if (card[f] != null) document.getElementById('c-' + f).value = card[f]; });
-      } catch (e) {}
+        populateCard(card);
+      } catch (e) { applyQrMode(localStorage.getItem(LS_QRMODE)); }
     }
 
     // ── BLE ─────────────────────────────────────────────────────────────────
@@ -337,13 +353,69 @@
       }
     }
 
+    // ── Contact QR (vCard generated client-side) ────────────────────────────
+    function qrMode() {
+      const r = document.querySelector('input[name="qrmode"]:checked');
+      return r ? r.value : 'vcard';
+    }
+    function vcardEscape(s) {
+      return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;')
+        .replace(/,/g, '\\,').replace(/\n/g, '\\n');
+    }
+    function buildVCard() {
+      const g = id => document.getElementById('c-' + id).value.trim();
+      const name = g('name'), org = g('company'), title = g('role'),
+            email = g('email'), li = g('linkedin'), gh = g('github');
+      const L = ['BEGIN:VCARD', 'VERSION:3.0',
+                 'N:' + vcardEscape(name) + ';;;;', 'FN:' + vcardEscape(name)];
+      if (org) L.push('ORG:' + vcardEscape(org));
+      if (title) L.push('TITLE:' + vcardEscape(title));
+      if (email) L.push('EMAIL;TYPE=INTERNET:' + vcardEscape(email));
+      if (li) L.push('URL:https://www.linkedin.com/in/' + encodeURIComponent(li));
+      if (gh) L.push('URL:https://github.com/' + encodeURIComponent(gh));
+      L.push('END:VCARD');
+      return L.join('\r\n');
+    }
+    function looksLikeVCard(s) {
+      return typeof s === 'string' && s.indexOf('BEGIN:VCARD') === 0;
+    }
+    function updateQrPreview() {
+      if (qrMode() === 'vcard') document.getElementById('vcard-preview').value = buildVCard();
+    }
+    function onQrMode() {
+      const m = qrMode();
+      localStorage.setItem(LS_QRMODE, m);
+      document.getElementById('contact-url-row').style.display = (m === 'url') ? 'block' : 'none';
+      document.getElementById('vcard-preview-row').style.display = (m === 'vcard') ? 'block' : 'none';
+      updateQrPreview();
+    }
+    function applyQrMode(m) {
+      m = (m === 'url') ? 'url' : 'vcard';
+      document.querySelectorAll('input[name="qrmode"]').forEach(r => { r.checked = (r.value === m); });
+      onQrMode();
+    }
+    function resolvedContactUrl() {
+      return qrMode() === 'vcard'
+        ? buildVCard()
+        : document.getElementById('c-contact_url').value.trim();
+    }
+    function populateCard(card) {
+      VCARD_FIELDS.forEach(f => { if (card[f] != null) document.getElementById('c-' + f).value = card[f]; });
+      const cu = card.contact_url;
+      let m = localStorage.getItem(LS_QRMODE);
+      if (!m) m = looksLikeVCard(cu) ? 'vcard' : (cu ? 'url' : 'vcard');
+      if (m === 'url' && cu != null && !looksLikeVCard(cu))
+        document.getElementById('c-contact_url').value = cu;
+      applyQrMode(m);
+    }
+
     async function loadCardFromDevice() {
       try {
         const dv = await cardChar.readValue();
         let s = new TextDecoder().decode(dv).replace(/\0+$/, '').trim();
         if (!s) return;
         const card = JSON.parse(s);
-        CARD_FIELDS.forEach(f => { if (card[f] != null) document.getElementById('c-' + f).value = card[f]; });
+        populateCard(card);
         localStorage.setItem(LS_CARD, JSON.stringify(card));
       } catch (e) { /* device may have only an empty stub */ }
     }
@@ -399,7 +471,8 @@
       btn.disabled = true;
       try {
         const card = {};
-        CARD_FIELDS.forEach(f => { card[f] = document.getElementById('c-' + f).value.trim(); });
+        VCARD_FIELDS.forEach(f => { card[f] = document.getElementById('c-' + f).value.trim(); });
+        card.contact_url = resolvedContactUrl();
         await cardChar.writeValueWithResponse(new TextEncoder().encode(JSON.stringify(card)));
         localStorage.setItem(LS_CARD, JSON.stringify(card));
         showBanner('success', 'Card saved — press B on the badge to apply.');
@@ -410,6 +483,8 @@
 
     buildSlots('urls-slots', 'url');
     buildSlots('topics-slots', 'topic');
+    VCARD_FIELDS.forEach(f =>
+      document.getElementById('c-' + f).addEventListener('input', updateQrPreview));
     loadLocal();
   </script>
 </body>
