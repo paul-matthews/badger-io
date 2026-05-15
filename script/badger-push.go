@@ -207,10 +207,16 @@ func deployDisk() {
 	}
 	logSuccess("Found %s\n", diskVolume)
 
+	// Locate apps/ relative to cwd or one level up (script/ → repo root).
+	appsDir := "apps"
+	if _, err := os.Stat(appsDir); os.IsNotExist(err) {
+		appsDir = filepath.Join("..", "apps")
+	}
+
 	// Enumerate app directories to copy (skip menu — keep factory menu).
-	entries, err := os.ReadDir("apps")
+	entries, err := os.ReadDir(appsDir)
 	if err != nil {
-		logFatal("Cannot read apps/: %v\n", err)
+		logFatal("Cannot read %s/: %v\n", appsDir, err)
 	}
 
 	var appDirs []string
@@ -220,12 +226,12 @@ func deployDisk() {
 		}
 	}
 	if len(appDirs) == 0 {
-		logWarn("No app directories found under apps/ (excluding menu).\n")
+		logWarn("No app directories found under %s/ (excluding menu).\n", appsDir)
 		return
 	}
 
 	for _, name := range appDirs {
-		localPath, _ := filepath.Abs(filepath.Join("apps", name))
+		localPath, _ := filepath.Abs(filepath.Join(appsDir, name))
 		remotePath := diskVolume + "/apps"
 
 		logInfo("  Copying %s → Badger2350/apps/\n", name)
