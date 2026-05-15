@@ -81,8 +81,9 @@ var cli struct {
 	Yes     bool   `short:"y" help:"Skip confirmation prompts." name:"yes"`
 	Verbose int    `short:"v" type:"counter" help:"Increase verbosity (-v, -vv)."`
 
-	Upload UploadCmd `cmd:"" default:"withargs" help:"Push app code and examples to device."`
-	Data   DataCmd   `cmd:"" help:"Push data files (JSON) to device."`
+	Upload UploadCmd `cmd:"" default:"withargs" help:"Push app code via mpremote (requires REPL access)."`
+	Disk   DiskCmd   `cmd:"" help:"Deploy apps via USB Disk Mode (double-tap RESET → Badger2350 volume)."`
+	Data   DataCmd   `cmd:"" help:"Push data files (JSON) via mpremote."`
 	Logs   LogsCmd   `cmd:"" help:"Stream serial output from device."`
 	Reset  ResetCmd  `cmd:"" help:"Soft-reset the device."`
 	Flash  FlashCmd  `cmd:"" help:"Flash UF2 firmware via BOOTSEL mass-storage mode."`
@@ -92,6 +93,7 @@ type UploadCmd struct {
 	Force bool `short:"f" help:"Re-upload all files, skipping nothing."`
 }
 
+type DiskCmd struct{}
 type DataCmd struct{}
 type LogsCmd struct{}
 type ResetCmd struct{}
@@ -100,6 +102,7 @@ type FlashCmd struct {
 }
 
 func (c *UploadCmd) Run() error { uploadFiles(c.Force); return nil }
+func (c *DiskCmd) Run() error   { deployDisk(); return nil }
 func (c *DataCmd) Run() error   { pushData(); return nil }
 func (c *LogsCmd) Run() error   { tailLogs(); return nil }
 func (c *ResetCmd) Run() error  { resetDevice(); return nil }
@@ -173,6 +176,84 @@ func copyFile(port, localPath, remotePath string) error {
 		return fmt.Errorf("cp %s: %w\n%s", localPath, err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// ── USB Disk Mode deploy ──────────────────────────────────────────────────────
+
+const diskVolume = "/Volumes/Badger2350"
+
+// deployDisk copies app directories to the Badger2350 USB Disk Mode volume.
+// macOS 15 FSKit blocks shell cp/Go file I/O to FAT32 volumes, so we use
+// AppleScript via osascript to drive Finder (which has the correct entitlements).
+func deployDisk() {
+	// Check or wait for the volume.
+	if _, err := os.Stat(diskVolume); err != nil {
+		logInfo("Badger2350 volume not found.\n")
+		logInfo("  1. Connect the Badger via USB-C.\n")
+		logInfo("  2. Double-tap the RESET button on the back.\n")
+		logInfo("  3. Wait for a disk named \"Badger2350\" to appear.\n")
+		fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for Badger2350 volume"))
+		for i := 0; i < 60; i++ {
+			if _, err := os.Stat(diskVolume); err == nil {
+				break
+			}
+			fmt.Fprintf(os.Stderr, styleInfo.Render("."))
+			time.Sleep(500 * time.Millisecond)
+		}
+		fmt.Fprintln(os.Stderr)
+		if _, err := os.Stat(diskVolume); err != nil {
+			logFatal("Timed out — Badger2350 volume not found.\n")
+		}
+	}
+	logSuccess("Found %s\n", diskVolume)
+
+	// Enumerate app directories to copy (skip menu — keep factory menu).
+	entries, err := os.ReadDir("apps")
+	if err != nil {
+		logFatal("Cannot read apps/: %v\n", err)
+	}
+
+	var appDirs []string
+	for _, e := range entries {
+		if e.IsDir() && e.Name() != "menu" {
+			appDirs = append(appDirs, e.Name())
+		}
+	}
+	if len(appDirs) == 0 {
+		logWarn("No app directories found under apps/ (excluding menu).\n")
+		return
+	}
+
+	for _, name := range appDirs {
+		localPath, _ := filepath.Abs(filepath.Join("apps", name))
+		remotePath := diskVolume + "/apps"
+
+		logInfo("  Copying %s → Badger2350/apps/\n", name)
+
+		// Delete the existing app directory on the volume first (if present),
+		// then duplicate the local directory.  Both operations go through Finder
+		// to satisfy macOS 15 FSKit entitlement requirements on FAT32 volumes.
+		script := fmt.Sprintf(`
+set srcFolder to POSIX file %q
+set dstFolder to POSIX file %q
+tell application "Finder"
+    if exists folder %q of folder dstFolder then
+        delete folder %q of folder dstFolder
+    end if
+    duplicate folder srcFolder to folder dstFolder
+end tell
+`, localPath, remotePath, name, name)
+
+		cmd := exec.Command("osascript", "-e", script)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			logWarn("  Failed to copy %s: %v\n", name, err)
+		}
+	}
+
+	logSuccess("Apps copied. Safely unmount the Badger2350 volume now (Finder → eject).\n")
+	logInfo("The badge will reboot into the menu when unmounted.\n")
 }
 
 // ── Upload (code) ─────────────────────────────────────────────────────────────

@@ -207,5 +207,4 @@ def on_exit():
         _stop_advertising()
 
 
-if __name__ == "__main__":
-    run(update)
+run(update)
