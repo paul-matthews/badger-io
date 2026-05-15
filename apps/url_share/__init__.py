@@ -38,13 +38,10 @@ _url_handle  = None
 
 def _ble_irq(event, data):
     global _pending_url
-    print("url_share: ble irq event", event)
     if event == 3:  # IRQ_GATTS_WRITE
         conn_handle, attr_handle = data
-        print("url_share: write on handle", attr_handle, "url_handle=", _url_handle)
         if attr_handle == _url_handle:
             raw = _ble.gatts_read(_url_handle)
-            print("url_share: raw bytes", len(raw), raw)
             _pending_url = raw.decode("utf-8").strip()
 
 
