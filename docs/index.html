@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Badger-IO · URL Share</title>
+  <title>Badger-IO · Configurator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
@@ -30,32 +30,18 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px;
+      padding: 24px 16px 64px;
     }
 
-    header {
-      width: 100%;
-      max-width: 480px;
-      margin-bottom: 32px;
-    }
+    header { width: 100%; max-width: 520px; margin-bottom: 24px; }
 
     .wordmark {
       font-family: 'Google Sans', 'Roboto', sans-serif;
-      font-size: 22px;
-      font-weight: 500;
-      color: var(--on-surface);
-      letter-spacing: -0.3px;
+      font-size: 22px; font-weight: 500;
+      color: var(--on-surface); letter-spacing: -0.3px;
     }
-
-    .wordmark span {
-      color: var(--blue);
-    }
-
-    .subtitle {
-      font-size: 13px;
-      color: var(--secondary);
-      margin-top: 4px;
-    }
+    .wordmark span { color: var(--blue); }
+    .subtitle { font-size: 13px; color: var(--secondary); margin-top: 4px; }
 
     .card {
       background: #fff;
@@ -63,263 +49,368 @@
       border-radius: var(--radius);
       padding: 24px;
       width: 100%;
-      max-width: 480px;
+      max-width: 520px;
     }
-
     .card + .card { margin-top: 16px; }
 
     h2 {
       font-family: 'Google Sans', sans-serif;
-      font-size: 16px;
-      font-weight: 500;
-      margin-bottom: 16px;
-      color: var(--on-surface);
+      font-size: 16px; font-weight: 500;
+      margin-bottom: 16px; color: var(--on-surface);
     }
 
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-
+    .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
     .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--outline);
-      flex-shrink: 0;
-      transition: background 0.3s;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--outline); flex-shrink: 0; transition: background 0.3s;
     }
     .dot.connected { background: var(--green); }
     .dot.connecting { background: #fbbc04; }
     .dot.error { background: var(--red); }
-
-    #status-text {
-      font-size: 14px;
-      color: var(--secondary);
-    }
+    #status-text { font-size: 14px; color: var(--secondary); }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
-      border-radius: 20px;
-      border: none;
-      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: 20px; border: none; cursor: pointer;
       font-family: 'Google Sans', 'Roboto', sans-serif;
-      font-size: 14px;
-      font-weight: 500;
+      font-size: 14px; font-weight: 500;
       transition: background 0.15s, box-shadow 0.15s;
     }
-
-    .btn-primary {
-      background: var(--blue);
-      color: #fff;
-    }
+    .btn-primary { background: var(--blue); color: #fff; }
     .btn-primary:hover { background: var(--blue-dark); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
     .btn-primary:disabled { background: #a8c7fa; cursor: not-allowed; }
-
-    .btn-outline {
-      background: transparent;
-      color: var(--blue);
-      border: 1px solid var(--outline);
-    }
+    .btn-outline { background: transparent; color: var(--blue); border: 1px solid var(--outline); }
     .btn-outline:hover { background: #e8f0fe; }
     .btn-outline:disabled { color: var(--outline); cursor: not-allowed; }
 
-    .url-input-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 4px;
-    }
-
-    input[type="url"] {
-      flex: 1;
-      padding: 10px 14px;
-      border: 1px solid var(--outline);
-      border-radius: 8px;
-      font-family: 'Roboto', sans-serif;
-      font-size: 14px;
-      color: var(--on-surface);
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    input[type="url"]:focus { border-color: var(--blue); }
-
-    #send-btn { flex-shrink: 0; border-radius: 8px; }
-
-    .result {
-      font-size: 13px;
-      margin-top: 12px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      display: none;
-    }
-    .result.success { background: #e6f4ea; color: var(--green); display: block; }
-    .result.error-msg { background: #fce8e6; color: var(--red); display: block; }
-
-    .requirements {
-      font-size: 12px;
-      color: var(--secondary);
-      line-height: 1.6;
-    }
-    .requirements li { margin-left: 16px; }
-
     .chrome-note {
-      font-size: 12px;
-      color: var(--secondary);
-      margin-top: 12px;
-      padding: 8px 12px;
-      background: #e8f0fe;
-      border-radius: 8px;
-      color: var(--blue-dark);
+      font-size: 12px; color: var(--blue-dark);
+      margin-top: 12px; padding: 8px 12px;
+      background: #e8f0fe; border-radius: 8px;
     }
+
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 8px;
+      width: 100%; max-width: 520px; margin: 16px 0;
+    }
+    .tab {
+      flex: 1; padding: 10px 0; text-align: center;
+      border-radius: 20px; border: 1px solid var(--outline);
+      background: #fff; color: var(--secondary);
+      font-family: 'Google Sans', sans-serif; font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: background 0.15s, color 0.15s;
+    }
+    .tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .tab:disabled { cursor: not-allowed; opacity: 0.6; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    label.field { display: block; margin-bottom: 14px; }
+    label.field span {
+      display: block; font-size: 12px; color: var(--secondary);
+      margin-bottom: 4px; font-weight: 500;
+    }
+    input[type="text"], input[type="url"], input[type="email"] {
+      width: 100%; padding: 10px 14px;
+      border: 1px solid var(--outline); border-radius: 8px;
+      font-family: 'Roboto', sans-serif; font-size: 14px;
+      color: var(--on-surface); outline: none; transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--blue); }
+
+    .slot {
+      display: grid;
+      grid-template-columns: 1fr 1.6fr auto;
+      gap: 8px; align-items: center;
+      margin-bottom: 10px;
+    }
+    .slot input { padding: 8px 10px; font-size: 13px; }
+    .slot .num {
+      grid-column: 1 / -1; font-size: 11px;
+      color: var(--secondary); margin: 6px 0 -4px;
+    }
+    .slot-clear {
+      background: transparent; border: 1px solid var(--outline);
+      color: var(--secondary); border-radius: 8px;
+      width: 32px; height: 34px; cursor: pointer; font-size: 16px;
+    }
+    .slot-clear:hover { background: #fce8e6; color: var(--red); border-color: var(--red); }
+
+    .save-row {
+      display: flex; align-items: center; gap: 12px;
+      margin-top: 18px; flex-wrap: wrap;
+    }
+    .banner {
+      width: 100%; max-width: 520px; margin: 0 0 16px;
+      padding: 12px 16px; border-radius: 8px;
+      font-size: 13px; display: none;
+    }
+    .banner.show { display: block; }
+    .banner.success { background: #e6f4ea; color: var(--green); }
+    .banner.error { background: #fce8e6; color: var(--red); }
+    .hint { font-size: 12px; color: var(--secondary); margin-top: 10px; line-height: 1.6; }
+    .hint li { margin-left: 16px; }
   </style>
 </head>
 <body>
   <header>
     <div class="wordmark">Badger<span>-IO</span></div>
-    <div class="subtitle">URL Share companion · Google I/O 2026</div>
+    <div class="subtitle">Badge configurator · Google I/O 2026</div>
   </header>
 
   <div class="card">
-    <h2>Badger Connection</h2>
+    <h2>Badge Connection</h2>
     <div class="status-row">
       <div class="dot" id="dot"></div>
       <span id="status-text">Not connected</span>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-primary" id="connect-btn" onclick="connectBLE()">
-        Connect to Badger
-      </button>
-      <button class="btn btn-outline" id="disconnect-btn" onclick="disconnectBLE()" disabled>
-        Disconnect
-      </button>
+      <button class="btn btn-primary" id="connect-btn" onclick="connectBLE()">Connect to Badger</button>
+      <button class="btn btn-outline" id="disconnect-btn" onclick="disconnectBLE()" disabled>Disconnect</button>
     </div>
-    <p class="chrome-note">Requires Chrome or Edge on Android/desktop. On the Badger, press <strong>B</strong> to enable BLE first.</p>
+    <p class="chrome-note">Requires Chrome or Edge on desktop. On the Badger, open <strong>URL Share</strong> and press <strong>B</strong> to start advertising first.</p>
   </div>
 
-  <div class="card">
-    <h2>Send URL</h2>
-    <div class="url-input-row">
-      <input type="url" id="url-input" placeholder="https://developers.android.com/…"
-             value="" autocomplete="off" spellcheck="false">
-      <button class="btn btn-primary" id="send-btn" onclick="sendURL()" disabled>Send</button>
-    </div>
-    <div id="result"></div>
+  <div class="tabs">
+    <button class="tab active" id="tab-urls" onclick="showTab('urls')">URLs</button>
+    <button class="tab" id="tab-card" onclick="showTab('card')">Card</button>
+    <button class="tab" id="tab-topics" onclick="showTab('topics')">Topics</button>
   </div>
 
-  <div class="card">
-    <h2>How to use</h2>
-    <ul class="requirements">
-      <li>On the Badger, open the <strong>URL Share</strong> app and press <strong>B</strong></li>
-      <li>Click <em>Connect to Badger</em> above — select <strong>Badger-IO</strong> from the list</li>
-      <li>Paste or type a URL and click <em>Send</em></li>
-      <li>The Badger will display the URL and its QR code</li>
-    </ul>
+  <div class="banner" id="banner"></div>
+
+  <!-- URLs -->
+  <div class="card panel active" id="panel-urls">
+    <h2>URL List <span style="font-weight:400;color:var(--secondary);font-size:13px">(up to 8, paged with UP/DOWN on the badge)</span></h2>
+    <div id="urls-slots"></div>
+    <div class="save-row">
+      <button class="btn btn-primary" id="save-urls" onclick="saveUrls()" disabled>Save URLs to Badge</button>
+    </div>
+    <div class="hint">Each slot shows as a QR code on the badge. Empty slots are skipped.</div>
+  </div>
+
+  <!-- Card -->
+  <div class="card panel" id="panel-card">
+    <h2>Card Details</h2>
+    <label class="field"><span>Name</span><input type="text" id="c-name" autocomplete="off"></label>
+    <label class="field"><span>Company</span><input type="text" id="c-company" autocomplete="off"></label>
+    <label class="field"><span>Role</span><input type="text" id="c-role" autocomplete="off"></label>
+    <label class="field"><span>Email</span><input type="email" id="c-email" autocomplete="off"></label>
+    <label class="field"><span>LinkedIn handle</span><input type="text" id="c-linkedin" placeholder="yourhandle" autocomplete="off"></label>
+    <label class="field"><span>GitHub handle</span><input type="text" id="c-github" placeholder="yourhandle" autocomplete="off"></label>
+    <label class="field"><span>Contact URL (vCard / contact link for the badge QR)</span><input type="url" id="c-contact_url" placeholder="https://..." autocomplete="off"></label>
+    <div class="save-row">
+      <button class="btn btn-primary" id="save-card" onclick="saveCard()" disabled>Save Card to Badge</button>
+      <span class="hint" style="margin:0">Auto-loaded from the badge on connect.</span>
+    </div>
+  </div>
+
+  <!-- Topics -->
+  <div class="card panel" id="panel-topics">
+    <h2>Ask Me About <span style="font-weight:400;color:var(--secondary);font-size:13px">(up to 8, paged with UP/DOWN on the badge)</span></h2>
+    <div id="topics-slots"></div>
+    <div class="save-row">
+      <button class="btn btn-primary" id="save-topics" onclick="saveTopics()" disabled>Save Topics to Badge</button>
+    </div>
+    <div class="hint">Each topic shows its label and a QR code in the Topics app.</div>
   </div>
 
   <script>
     const SERVICE_UUID = 'ba5d4e57-0000-0000-0000-000000000001';
     const URL_CHAR_UUID = 'ba5d4e57-0000-0000-0000-000000000002';
+    const CARD_CHAR_UUID = 'ba5d4e57-0000-0000-0000-000000000003';
+    const TOPICS_CHAR_UUID = 'ba5d4e57-0000-0000-0000-000000000004';
+    const SLOTS = 8;
+    const LS_URLS = 'badger_urls', LS_CARD = 'badger_card', LS_TOPICS = 'badger_topics';
+    const CARD_FIELDS = ['name','company','role','email','linkedin','github','contact_url'];
 
-    let device = null;
-    let server = null;
-    let urlChar = null;
+    let device = null, server = null;
+    let urlChar = null, cardChar = null, topicsChar = null;
 
     const dot = document.getElementById('dot');
     const statusText = document.getElementById('status-text');
     const connectBtn = document.getElementById('connect-btn');
     const disconnectBtn = document.getElementById('disconnect-btn');
-    const sendBtn = document.getElementById('send-btn');
-    const resultEl = document.getElementById('result');
+    const banner = document.getElementById('banner');
+    const saveButtons = ['save-urls','save-card','save-topics'].map(id => document.getElementById(id));
 
-    function setStatus(state, msg) {
-      dot.className = 'dot ' + state;
-      statusText.textContent = msg;
+    function setStatus(stateCls, msg) { dot.className = 'dot ' + stateCls; statusText.textContent = msg; }
+    function setSavesEnabled(on) { saveButtons.forEach(b => b.disabled = !on); }
+    function showBanner(type, msg) {
+      banner.className = 'banner show ' + type;
+      banner.textContent = msg;
+    }
+    function clearBanner() { banner.className = 'banner'; }
+
+    function showTab(name) {
+      ['urls','card','topics'].forEach(n => {
+        document.getElementById('tab-' + n).classList.toggle('active', n === name);
+        document.getElementById('panel-' + n).classList.toggle('active', n === name);
+      });
     }
 
-    function setResult(type, msg) {
-      resultEl.className = 'result ' + type;
-      resultEl.textContent = msg;
+    // ── Slot rows ───────────────────────────────────────────────────────────
+    function buildSlots(containerId, prefix) {
+      const c = document.getElementById(containerId);
+      for (let i = 0; i < SLOTS; i++) {
+        const row = document.createElement('div');
+        row.className = 'slot';
+        row.innerHTML =
+          '<div class="num">Slot ' + (i + 1) + '</div>' +
+          '<input type="text" id="' + prefix + '-l-' + i + '" placeholder="Label">' +
+          '<input type="url" id="' + prefix + '-u-' + i + '" placeholder="https://...">' +
+          '<button class="slot-clear" title="Clear slot" ' +
+          'onclick="clearSlot(\'' + prefix + '\',' + i + ')">×</button>';
+        c.appendChild(row);
+      }
+    }
+    function clearSlot(prefix, i) {
+      document.getElementById(prefix + '-l-' + i).value = '';
+      document.getElementById(prefix + '-u-' + i).value = '';
+    }
+    function readSlots(prefix) {
+      const out = [];
+      for (let i = 0; i < SLOTS; i++) {
+        out.push({
+          l: document.getElementById(prefix + '-l-' + i).value.trim(),
+          u: document.getElementById(prefix + '-u-' + i).value.trim(),
+        });
+      }
+      return out;
+    }
+    function writeSlots(prefix, arr) {
+      for (let i = 0; i < SLOTS; i++) {
+        const e = arr[i] || { l: '', u: '' };
+        document.getElementById(prefix + '-l-' + i).value = e.l || '';
+        document.getElementById(prefix + '-u-' + i).value = e.u || '';
+      }
     }
 
+    // ── localStorage ────────────────────────────────────────────────────────
+    function loadLocal() {
+      try {
+        const u = JSON.parse(localStorage.getItem(LS_URLS) || '[]');
+        writeSlots('url', u);
+      } catch (e) {}
+      try {
+        const t = JSON.parse(localStorage.getItem(LS_TOPICS) || '[]');
+        writeSlots('topic', t);
+      } catch (e) {}
+      try {
+        const card = JSON.parse(localStorage.getItem(LS_CARD) || '{}');
+        CARD_FIELDS.forEach(f => { if (card[f] != null) document.getElementById('c-' + f).value = card[f]; });
+      } catch (e) {}
+    }
+
+    // ── BLE ─────────────────────────────────────────────────────────────────
     async function connectBLE() {
       if (!navigator.bluetooth) {
-        setResult('error-msg', 'Web Bluetooth is not supported in this browser. Please use Chrome or Edge on desktop.');
+        showBanner('error', 'Web Bluetooth is not supported. Use Chrome or Edge on desktop.');
         return;
       }
-
       setStatus('connecting', 'Scanning for Badger-IO…');
       connectBtn.disabled = true;
-
       try {
         device = await navigator.bluetooth.requestDevice({
-          filters: [{ services: [SERVICE_UUID] }],
+          filters: [{ name: 'Badger-IO' }],
+          optionalServices: [SERVICE_UUID],
         });
-
         device.addEventListener('gattserverdisconnected', onDisconnected);
-
         setStatus('connecting', 'Connecting…');
         server = await device.gatt.connect();
-
         const svc = await server.getPrimaryService(SERVICE_UUID);
         urlChar = await svc.getCharacteristic(URL_CHAR_UUID);
+        cardChar = await svc.getCharacteristic(CARD_CHAR_UUID);
+        topicsChar = await svc.getCharacteristic(TOPICS_CHAR_UUID);
 
         setStatus('connected', 'Connected to ' + device.name);
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
-        sendBtn.disabled = false;
+        setSavesEnabled(true);
+        clearBanner();
+        await loadCardFromDevice();
       } catch (err) {
         setStatus('error', err.name === 'NotFoundError' ? 'No device selected.' : ('Error: ' + err.message));
         connectBtn.disabled = false;
       }
     }
 
+    async function loadCardFromDevice() {
+      try {
+        const dv = await cardChar.readValue();
+        let s = new TextDecoder().decode(dv).replace(/\0+$/, '').trim();
+        if (!s) return;
+        const card = JSON.parse(s);
+        CARD_FIELDS.forEach(f => { if (card[f] != null) document.getElementById('c-' + f).value = card[f]; });
+        localStorage.setItem(LS_CARD, JSON.stringify(card));
+      } catch (e) { /* device may have only an empty stub */ }
+    }
+
     function onDisconnected() {
       setStatus('', 'Disconnected');
       connectBtn.disabled = false;
       disconnectBtn.disabled = true;
-      sendBtn.disabled = true;
-      urlChar = null;
-      server = null;
+      setSavesEnabled(false);
+      urlChar = cardChar = topicsChar = server = null;
     }
-
     function disconnectBLE() {
       if (device && device.gatt.connected) device.gatt.disconnect();
     }
 
-    async function sendURL() {
-      const url = document.getElementById('url-input').value.trim();
-      if (!url) {
-        setResult('error-msg', 'Please enter a URL.');
-        return;
+    async function writeItems(char, arr, lsKey) {
+      const enc = new TextEncoder();
+      for (let i = 0; i < SLOTS; i++) {
+        const e = arr[i] || { l: '', u: '' };
+        const payload = JSON.stringify({ i, l: e.l, u: e.u });
+        await char.writeValueWithResponse(enc.encode(payload));
       }
-      if (!urlChar) {
-        setResult('error-msg', 'Not connected to Badger. Connect first.');
-        return;
-      }
-
-      sendBtn.disabled = true;
-      resultEl.className = 'result';
-      try {
-        const encoded = new TextEncoder().encode(url);
-        await urlChar.writeValueWithResponse(encoded);
-        // Disconnect — the badge is now showing the URL QR code
-        if (device && device.gatt.connected) device.gatt.disconnect();
-        setResult('success', '✓ URL sent! Check your Badger for the QR code.');
-      } catch (err) {
-        setResult('error-msg', 'Send failed: ' + err.message);
-        sendBtn.disabled = false;
-      }
+      localStorage.setItem(lsKey, JSON.stringify(arr));
     }
 
-    // Allow pressing Enter in URL field to send
-    document.getElementById('url-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendURL();
-    });
+    async function saveUrls() {
+      if (!urlChar) return;
+      const btn = document.getElementById('save-urls');
+      btn.disabled = true;
+      try {
+        await writeItems(urlChar, readSlots('url'), LS_URLS);
+        showBanner('success', 'URLs saved — press B on the badge to apply.');
+      } catch (e) {
+        showBanner('error', 'Save failed: ' + e.message);
+      } finally { btn.disabled = !urlChar; }
+    }
+
+    async function saveTopics() {
+      if (!topicsChar) return;
+      const btn = document.getElementById('save-topics');
+      btn.disabled = true;
+      try {
+        await writeItems(topicsChar, readSlots('topic'), LS_TOPICS);
+        showBanner('success', 'Topics saved — press B on the badge to apply.');
+      } catch (e) {
+        showBanner('error', 'Save failed: ' + e.message);
+      } finally { btn.disabled = !topicsChar; }
+    }
+
+    async function saveCard() {
+      if (!cardChar) return;
+      const btn = document.getElementById('save-card');
+      btn.disabled = true;
+      try {
+        const card = {};
+        CARD_FIELDS.forEach(f => { card[f] = document.getElementById('c-' + f).value.trim(); });
+        await cardChar.writeValueWithResponse(new TextEncoder().encode(JSON.stringify(card)));
+        localStorage.setItem(LS_CARD, JSON.stringify(card));
+        showBanner('success', 'Card saved — press B on the badge to apply.');
+      } catch (e) {
+        showBanner('error', 'Save failed: ' + e.message);
+      } finally { btn.disabled = !cardChar; }
+    }
+
+    buildSlots('urls-slots', 'url');
+    buildSlots('topics-slots', 'topic');
+    loadLocal();
   </script>
 </body>
 </html>
