@@ -233,7 +233,7 @@ def draw_no_urls():
 def draw_advertising():
     screen.pen = color.white
     screen.clear()
-    _header("Configure - scan QR")
+    _header("Configure from a browser")
 
     gc.collect()
     companion_code = qrcode.QRCode()
@@ -243,10 +243,19 @@ def draw_advertising():
     tx = qr_total + 12
     screen.pen = color.black
     screen.font = small
-    screen.text("Open in Chrome,", tx, 38)
-    screen.text("tap Connect, edit", tx, 54)
-    screen.text("URLs/Card/Topics,", tx, 70)
-    screen.text("Save, then press B.", tx, 86)
+    screen.text("In Chrome/Edge:", tx, 36)
+    screen.text("open the URL below,", tx, 52)
+    screen.text("Connect, edit, Save,", tx, 68)
+    screen.text("then press B.", tx, 84)
+
+    # URL as readable text (a laptop can't scan the QR; phone users can)
+    short = COMPANION_URL.replace("https://", "").replace("http://", "")
+    if short.endswith("/"):
+        short = short[:-1]
+    screen.pen = color.black
+    screen.font = small
+    uw, _ = screen.measure_text(short)
+    screen.text(short, (W - uw) // 2, H - 36)
 
     _footer("B: done")
 
