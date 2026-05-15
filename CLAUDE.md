@@ -35,15 +35,16 @@ Covers: screen/image API, badge hardware, color, shape, text, State, rtc, all fo
 
 ## Key API facts (bw-1.27.0 / pimoroni/badger2350 v1.0.0)
 - **Display**: 264x176 pixels, e-paper, 4 shades of grey. `screen.width=264`, `screen.height=176`.
-- **App entry point**: `run(update)` at the end of `__init__.py` is correct — the app blocks during
-  import. `/system/main.py` does `__import__(app)` and the app's `run(update)` call loops inside that.
-  Use `if __name__ == "__main__": run(update)` only if you also want the app to run standalone.
+- **CRITICAL — App entry point**: v1.0.0 `/system/main.py` does `running_app = __import__(app)` then
+  calls `run(running_app.update)` itself. Apps MUST use `if __name__ == "__main__": run(update)` guard
+  so `run()` is NOT triggered during import. Without the guard, `run()` blocks inside `__import__()`,
+  `running_app` is never assigned, and HOME fires `NameError: name 'running_app' isn't defined`.
 - `run(update_fn)` from badgeware is the app event loop. Handles `screen.update()`, watchdog, HOME button exit.
 - `screen`, `badge`, `color`, `shape`, `image`, `rom_font`, `rect`, `vec2`, `mat3`, `brush`, `text`, `State`, `rtc`
   are **frozen globals / builtins** — available everywhere, NOT as `badgeware.screen` etc.
 - `State`, `run` ARE importable: `from badgeware import run, State`
 - `screen.update()` must NOT be called from user code — only `run()` calls it.
-- **Button pattern**: `badge.pressed(BUTTON_B)`, `badge.held(BUTTON_A)`, `badge.released(BUTTON_C)`
+- **Button pattern (v1.0.0)**: `io.BUTTON_B in io.pressed` — `badge.pressed()` API is for newer firmware
   Constants: `BUTTON_A`, `BUTTON_B`, `BUTTON_C`, `BUTTON_UP`, `BUTTON_DOWN`, `BUTTON_HOME`
 - BLE GATT buffer must be pre-allocated: `_ble.gatts_write(handle, b'\x00' * 512)` before use
 - Font renderer crashes on non-ASCII (em-dash etc) — ASCII only in all text
