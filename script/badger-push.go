@@ -307,9 +307,6 @@ func tailLogs() {
 	logInfo("Streaming serial output from %s (Ctrl+C to stop)...\n", port)
 	logInfo("Waiting for output — navigate to an app on the device.\n")
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
 	for {
 		// Configure port: 115200 baud, raw, no echo
 		exec.Command("stty", "-f", port, "115200", "raw", "-echo", "cs8", "-parenb", "-cstopb").Run()
@@ -318,41 +315,25 @@ func tailLogs() {
 		// O_NONBLOCK: don't block on open waiting for DCD
 		f, err := os.OpenFile(port, os.O_RDONLY|syscall.O_NOCTTY|syscall.O_NONBLOCK, 0)
 		if err != nil {
-			select {
-			case <-sigCh:
-				return
-			default:
-				time.Sleep(300 * time.Millisecond)
-				continue
-			}
+			time.Sleep(300 * time.Millisecond)
+			continue
 		}
 		// Switch to blocking reads once the port is open
 		syscall.SetNonblock(int(f.Fd()), false)
 
-		disconnected := make(chan struct{})
-		go func() {
-			defer close(disconnected)
-			scanner := bufio.NewScanner(f)
-			for scanner.Scan() {
-				line := scanner.Text()
-				if strings.Contains(line, "Traceback") || strings.Contains(line, "Error") {
-					fmt.Println(styleError.Render(line))
-				} else {
-					fmt.Println(line)
-				}
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, "Traceback") || strings.Contains(line, "Error") {
+				fmt.Println(styleError.Render(line))
+			} else {
+				fmt.Println(line)
 			}
-		}()
-
-		select {
-		case <-sigCh:
-			f.Close()
-			fmt.Fprintln(os.Stderr)
-			return
-		case <-disconnected:
-			f.Close()
-			logWarn("\nDevice disconnected — waiting to reconnect...\n")
-			time.Sleep(300 * time.Millisecond)
 		}
+
+		f.Close()
+		logWarn("\nDevice disconnected — waiting to reconnect...\n")
+		time.Sleep(300 * time.Millisecond)
 	}
 }
 
@@ -375,6 +356,18 @@ var _ io.Writer = io.Discard
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
+	// Dedicated goroutine so Ctrl+C always exits, even when another goroutine
+	// is stuck in an uninterruptible kernel sleep (e.g. blocking read on a
+	// USB serial device). os.Exit terminates via the _exit syscall, which the
+	// kernel always honours regardless of goroutine state.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Fprintln(os.Stderr)
+		os.Exit(0)
+	}()
+
 	ctx := kong.Parse(&cli,
 		kong.Name("badger-push"),
 		kong.Description("Push code and data to Badger 2350 W."),
