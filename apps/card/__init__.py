@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import qrcode
 from badgeware import run, State
 
 sys.path.insert(0, "/system/apps/card")
@@ -23,6 +24,7 @@ COMPANY = _config.get("company", "Your Company")
 EMAIL = _config.get("email", "you@example.com")
 LINKEDIN = _config.get("linkedin", "yourhandle")
 GITHUB = _config.get("github", "yourhandle")
+CONTACT_URL = _config.get("contact_url", "")
 
 W = screen.width
 H = screen.height
@@ -41,6 +43,12 @@ State.load("card", state)
 
 _last_up = False
 _last_dn = False
+_last_b = False
+
+_qr = None
+if CONTACT_URL:
+    _qr = qrcode.QRCode()
+    _qr.set_text(CONTACT_URL)
 
 
 def _header(label):
@@ -78,7 +86,7 @@ def draw_name_view():
     screen.font = small
     screen.text(ROLE, 8, role_y)
 
-    _footer("UP/DN: contacts", "HOME: menu")
+    _footer("B: share QR", "HOME: menu")
 
 
 def draw_contact_view():
@@ -96,35 +104,72 @@ def draw_contact_view():
     screen.text("linkedin.com/in/" + LINKEDIN, 8, linkedin_y)
     screen.text("github.com/" + GITHUB, 8, github_y)
 
-    _footer("UP/DN: back", "HOME: menu")
+    _footer("B: share QR", "HOME: menu")
 
 
-_views = [draw_name_view, draw_contact_view]
+def draw_qr_view():
+    screen.pen = color.white
+    screen.clear()
+    _header("Scan to add contact")
+
+    if _qr is None:
+        screen.pen = color.black
+        screen.font = small
+        screen.text("Add contact_url to", 8, 50)
+        screen.text("card.local.json", 8, 68)
+    else:
+        w, _ = _qr.get_size()
+        cell_size = max(1, min(CONTENT_H, 120) // w)
+        total = cell_size * w
+        ox = (W - total) // 2
+        oy = HEADER_H + (CONTENT_H - total) // 2
+        screen.pen = color.white
+        screen.shape(shape.rectangle(ox, oy, total, total))
+        screen.pen = color.black
+        for x in range(w):
+            for y in range(w):
+                if _qr.get_module(x, y):
+                    screen.shape(shape.rectangle(
+                        ox + x * cell_size, oy + y * cell_size,
+                        cell_size, cell_size))
+
+    _footer("B: back", "HOME: menu")
+
+
+_views = [draw_name_view, draw_contact_view, draw_qr_view]
 
 
 def init():
-    print("card: init")
+    pass
 
 
 def update():
-    global _last_up, _last_dn
+    global _last_up, _last_dn, _last_b
     up_now = io.BUTTON_UP in io.pressed
     dn_now = io.BUTTON_DOWN in io.pressed
-    n = len(_views)
-    if up_now and not _last_up:
-        state["view"] = (state["view"] - 1) % n
+    b_now = io.BUTTON_B in io.pressed
+
+    if up_now and not _last_up and state["view"] != 2:
+        state["view"] = (state["view"] - 1) % 2
         State.modify("card", state)
-    elif dn_now and not _last_dn:
-        state["view"] = (state["view"] + 1) % n
+    elif dn_now and not _last_dn and state["view"] != 2:
+        state["view"] = (state["view"] + 1) % 2
+        State.modify("card", state)
+    elif b_now and not _last_b:
+        state["view"] = 0 if state["view"] == 2 else 2
         State.modify("card", state)
     _last_up = up_now
     _last_dn = dn_now
+    _last_b = b_now
 
     _views[state["view"]]()
 
 
 def on_exit():
-    pass
+    if state["view"] == 2:
+        state["view"] = 0
+        State.modify("card", state)
 
 
-run(update)
+if __name__ == "__main__":
+    run(update)

@@ -162,6 +162,8 @@ def update():
     global _ble_active, _last_b, _needs_redraw, _pending_url
 
     b_now = io.BUTTON_B in io.pressed
+    b_edge = b_now and not _last_b
+    _last_b = b_now
 
     if _pending_url is not None:
         url = _pending_url
@@ -171,35 +173,31 @@ def update():
         _stop_advertising()
         state["url"] = url
         State.modify("url_share", state)
-        draw_url(url)
+        _needs_redraw = True
 
-    elif b_now and not _last_b:
+    elif b_edge:
         if state["url"]:
             state["url"] = ""
             State.modify("url_share", state)
-            draw_idle()
+        elif _ble_active:
+            _stop_advertising()
+            _ble_active = False
         else:
-            _ble_active = not _ble_active
-            if _ble_active:
-                try:
-                    _start_advertising()
-                except Exception as e:
-                    print("url_share: gap_advertise failed:", type(e).__name__, str(e))
-                    _ble_active = False
-                draw_advertising()
-            else:
-                _stop_advertising()
-                draw_idle()
-        _needs_redraw = False
+            try:
+                _start_advertising()
+                _ble_active = True
+            except Exception as e:
+                print("url_share: gap_advertise failed:", type(e).__name__, str(e))
+        _needs_redraw = True
 
-    elif _needs_redraw:
+    if _needs_redraw:
+        _needs_redraw = False
         if state["url"]:
             draw_url(state["url"])
+        elif _ble_active:
+            draw_advertising()
         else:
             draw_idle()
-        _needs_redraw = False
-
-    _last_b = b_now
 
 
 def on_exit():
@@ -207,4 +205,5 @@ def on_exit():
         _stop_advertising()
 
 
-run(update)
+if __name__ == "__main__":
+    run(update)

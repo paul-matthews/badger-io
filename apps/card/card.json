@@ -4,5 +4,6 @@
   "role": "Your Role",
   "email": "you@example.com",
   "linkedin": "yourhandle",
-  "github": "yourhandle"
+  "github": "yourhandle",
+  "contact_url": ""
 }

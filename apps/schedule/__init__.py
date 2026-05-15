@@ -28,12 +28,16 @@ FOOTER_TEXT_Y = H - 12
 state = {"offset": 0}
 State.load("schedule", state)
 
+_rtc = machine.RTC()
+
 _last_up = False
 _last_dn = False
+_last_minute = -1
+_needs_redraw = True
 
 
 def _now_hhmm():
-    dt = machine.RTC().datetime()
+    dt = _rtc.datetime()
     # (year, month, day, weekday, hour, minute, second, subsecond)
     date_str = "{:04d}-{:02d}-{:02d}".format(dt[0], dt[1], dt[2])
     return date_str, dt[4] * 60 + dt[5]
@@ -98,23 +102,36 @@ def _draw_session(y, label, session):
 
 
 def update():
-    global _last_up, _last_dn
+    global _last_up, _last_dn, _last_minute, _needs_redraw
 
     up_now = io.BUTTON_UP in io.pressed
     dn_now = io.BUTTON_DOWN in io.pressed
-
-    date_str, hhmm = _now_hhmm()
-    relevant = _relevant(date_str, hhmm)
-
-    if up_now and not _last_up and relevant:
-        state["offset"] = (state["offset"] - 1) % len(relevant)
-        State.modify("schedule", state)
-    if dn_now and not _last_dn and relevant:
-        state["offset"] = (state["offset"] + 1) % len(relevant)
-        State.modify("schedule", state)
-
+    up_edge = up_now and not _last_up
+    dn_edge = dn_now and not _last_dn
     _last_up = up_now
     _last_dn = dn_now
+
+    date_str, hhmm = _now_hhmm()
+    if hhmm != _last_minute:
+        _last_minute = hhmm
+        _needs_redraw = True
+
+    if up_edge or dn_edge:
+        _needs_redraw = True
+
+    if not _needs_redraw:
+        return
+    _needs_redraw = False
+
+    relevant = _relevant(date_str, hhmm)
+
+    if relevant:
+        if up_edge:
+            state["offset"] = (state["offset"] - 1) % len(relevant)
+            State.modify("schedule", state)
+        elif dn_edge:
+            state["offset"] = (state["offset"] + 1) % len(relevant)
+            State.modify("schedule", state)
 
     screen.pen = color.white
     screen.clear()
@@ -165,4 +182,5 @@ def on_exit():
     pass
 
 
-run(update)
+if __name__ == "__main__":
+    run(update)

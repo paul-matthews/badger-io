@@ -93,7 +93,9 @@ type UploadCmd struct {
 	Force bool `short:"f" help:"Re-upload all files, skipping nothing."`
 }
 
-type DiskCmd struct{}
+type DiskCmd struct {
+	Keep []string `help:"Factory app names to preserve (default: removes the_compendium, hydrate, mass_storage)." name:"keep"`
+}
 type DataCmd struct{}
 type LogsCmd struct{}
 type ResetCmd struct{}
@@ -102,7 +104,7 @@ type FlashCmd struct {
 }
 
 func (c *UploadCmd) Run() error { uploadFiles(c.Force); return nil }
-func (c *DiskCmd) Run() error   { deployDisk(); return nil }
+func (c *DiskCmd) Run() error   { deployDisk(c.Keep); return nil }
 func (c *DataCmd) Run() error   { pushData(); return nil }
 func (c *LogsCmd) Run() error   { tailLogs(); return nil }
 func (c *ResetCmd) Run() error  { resetDevice(); return nil }
@@ -184,10 +186,20 @@ func copyFile(port, localPath, remotePath string) error {
 // Update this if a firmware release changes the FAT label.
 const diskVolume = "/Volumes/BADGER"
 
-// deployDisk copies app directories to the Badger USB Disk Mode volume.
+// defaultFactoryAppsToRemove lists built-in apps stripped from the device on
+// every disk deploy. These are present after every reflash; remove from this
+// list if you want to keep one of them.
+var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", "mass_storage"}
+
+// deployDisk copies app directories to the Badger USB Disk Mode volume and
+// removes unwanted factory apps.
 // macOS 15 FSKit blocks shell cp/Go file I/O to FAT32 volumes, so we use
 // AppleScript via osascript to drive Finder (which has the correct entitlements).
-func deployDisk() {
+func deployDisk(keep []string) {
+	keepSet := make(map[string]bool, len(keep))
+	for _, k := range keep {
+		keepSet[k] = true
+	}
 	volName := filepath.Base(diskVolume)
 
 	// Check or wait for the volume.
@@ -262,7 +274,30 @@ end tell
 		}
 	}
 
-	logSuccess("Apps copied. Safely unmount the %s volume now (Finder → eject).\n", volName)
+	// Remove unwanted factory apps from the volume.
+	appsRemotePath := diskVolume + "/apps"
+	for _, name := range defaultFactoryAppsToRemove {
+		if keepSet[name] {
+			continue
+		}
+		logInfo("  Removing factory app: %s\n", name)
+		script := fmt.Sprintf(`
+set dstFolder to POSIX file %q
+tell application "Finder"
+    if exists folder %q of folder dstFolder then
+        delete folder %q of folder dstFolder
+    end if
+end tell
+`, appsRemotePath, name, name)
+		cmd := exec.Command("osascript", "-e", script)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			logWarn("  Failed to remove %s: %v\n", name, err)
+		}
+	}
+
+	logSuccess("Done. Safely unmount the %s volume (Finder → eject).\n", volName)
 	logInfo("The badge will reboot into the menu when unmounted.\n")
 }
 
