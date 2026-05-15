@@ -2,52 +2,30 @@
 """
 Catch the MicroPython REPL window on a Badger badge.
 
-The badgeware firmware disables the interactive REPL once an app is running,
-but there is a brief window (~300 ms) between MicroPython starting and the
-app disabling USB CDC where Ctrl-C interrupts the boot sequence.
+badgeware disables the interactive REPL once run() is called, but there is
+a brief window (~300 ms) between MicroPython starting and the app disabling
+USB where Ctrl-C can interrupt the boot sequence.
 
 Usage:
   1. Run this script.
   2. Immediately press RESET on the device (or unplug/replug).
-  3. If the window is caught, the script drops you into an mpremote shell.
+  3. If the window is caught, you get an interactive mpremote REPL.
 
-Requires: pip install pyserial
+No extra dependencies — uses mpremote, which is already installed.
 """
 import glob
+import subprocess
 import sys
 import time
 
-try:
-    import serial
-except ImportError:
-    print("pyserial not installed — run: pip install pyserial")
-    sys.exit(1)
-
 PORT_PATTERN = "/dev/tty.usbmodem*"
-BAUD = 115200
-POLL_INTERVAL = 0.02   # 20 ms
-WAIT_SECONDS = 90      # how long to wait for the device to appear
-CTRL_C = b"\x03"
+POLL_INTERVAL = 0.02   # 20 ms — fast enough to catch the ~300 ms window
+WAIT_SECONDS = 90
 
 
 def find_port():
     ports = glob.glob(PORT_PATTERN)
     return ports[0] if ports else None
-
-
-def try_interrupt(port):
-    try:
-        with serial.Serial(port, BAUD, timeout=0.3) as ser:
-            # Double Ctrl-C — standard MicroPython interrupt sequence
-            ser.write(CTRL_C + CTRL_C)
-            time.sleep(0.15)
-            # Send Enter to get a clean prompt
-            ser.write(b"\r\n")
-            time.sleep(0.15)
-            response = ser.read(512)
-            return response
-    except Exception as e:
-        return None
 
 
 print(f"Waiting up to {WAIT_SECONDS}s for a serial port to appear...")
@@ -67,22 +45,15 @@ if not port:
     sys.exit(1)
 
 print(f"Port appeared: {port}")
-response = try_interrupt(port)
+print(f"Running: mpremote connect {port}\n")
 
-if response is None:
-    print("Could not open port.")
-    sys.exit(1)
+# mpremote automatically sends Ctrl-C twice before executing anything,
+# which is the standard MicroPython boot interrupt sequence.
+result = subprocess.run(["mpremote", "connect", port])
 
-print(f"Response: {repr(response)}")
-
-if b">>>" in response or b"MicroPython" in response:
-    print("\nREPL caught! Running: mpremote connect", port)
-    import subprocess
-    subprocess.run(["mpremote", "connect", port])
-else:
-    print("\nNo REPL prompt — the boot interrupt window was missed.")
-    print("Try again: run this script, THEN press RESET within ~1 second.")
+if result.returncode != 0:
+    print("\nmpremote exited with an error.")
+    print("The boot interrupt window was probably missed.")
+    print("Try again: run this script, then press RESET within ~1 second.")
     print()
-    print("If this consistently fails, the firmware may have the REPL disabled.")
-    print("Alternative: use 'go run badger-push.go logs' to confirm the device")
-    print("is reachable, then try the second device.")
+    print("If it consistently fails, the firmware may have REPL disabled at startup.")
