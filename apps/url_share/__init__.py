@@ -38,16 +38,21 @@ _url_handle  = None
 
 def _ble_irq(event, data):
     global _pending_url
+    print("url_share: ble irq event", event)
     if event == 3:  # IRQ_GATTS_WRITE
         conn_handle, attr_handle = data
+        print("url_share: write on handle", attr_handle, "url_handle=", _url_handle)
         if attr_handle == _url_handle:
-            _pending_url = _ble.gatts_read(_url_handle).decode("utf-8").strip()
+            raw = _ble.gatts_read(_url_handle)
+            print("url_share: raw bytes", len(raw), raw)
+            _pending_url = raw.decode("utf-8").strip()
 
 
 _ble.irq(_ble_irq)
 ((_url_handle,),) = _ble.gatts_register_services((
     (_SVC_UUID, ((_URL_UUID, _FLAG_READ | _FLAG_WRITE),)),
 ))
+_ble.gatts_write(_url_handle, b'\x00' * 512)
 
 # Advertising: flags + 128-bit UUID in adv_data; name in scan response
 _adv_data  = b'\x02\x01\x06' + bytes([0x11, 0x07]) + bytes(_SVC_UUID)
