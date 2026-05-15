@@ -120,13 +120,13 @@ UF2 source: `https://github.com/badger/home/releases/tag/mona-os-v4.03`
 
 <!-- Append new entries below. Format: ### YYYY-MM-DD: Title -->
 
-### 2026-05-15: macOS 15 Sequoia blocks shell `cp` to FAT32 volumes
+### 2026-05-15: macOS 15 Sequoia / FAT32 — shell I/O works on /Volumes/BADGER
 
-**Symptom:** `cp` or Go `os.WriteFile` to `/Volumes/BADGER` fails silently or with a permissions error on macOS 15.
+**Symptom (initial assumption):** Expected `cp` to fail on the BADGER volume under macOS 15, based on known FSKit restrictions.
 
-**Cause:** FSKit entitlement changes in Sequoia mean only processes with the correct entitlements (i.e. Finder) can write to FAT32 volumes via the shell.
+**Actual behaviour:** `cp -r` and `rsync` both work fine on `/Volumes/BADGER` in disk mode. The restriction applies to other FAT32 volumes but not this one.
 
-**Resolution:** Use `osascript` to drive Finder for all disk-mode copies. The `badger-push disk` command does this automatically. For mpremote-based deploys (`badger-push upload`), no workaround needed — mpremote talks over the REPL, not the filesystem.
+**Resolution:** Use `rsync -a --delete` for disk-mode deploys — it only transfers changed files and handles deletions. No osascript/Finder workaround needed. `badger-push disk` uses rsync.
 
 ---
 

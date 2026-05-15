@@ -193,11 +193,10 @@ func copyFile(port, localPath, remotePath string) error {
 const diskVolume = "/Volumes/BADGER"
 
 // defaultFactoryAppsToRemove lists built-in apps stripped from the device on
-// every disk deploy. These are present after every reflash; remove from this
-// list if you want to keep one of them.
+// every disk deploy. Pass --keep <name> to preserve any of them.
 var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", "mass_storage"}
 
-// deployDisk copies app directories to the Badger USB Disk Mode volume and
+// deployDisk rsyncs all app directories to the Badger USB Disk Mode volume and
 // removes unwanted factory apps.
 func deployDisk(keep []string) {
 	keepSet := make(map[string]bool, len(keep))
@@ -233,7 +232,7 @@ func deployDisk(keep []string) {
 		appsDir = filepath.Join("..", "apps")
 	}
 
-	// Enumerate app directories to copy (skip menu — keep factory menu).
+	// Enumerate app directories to sync (skip menu — keep factory menu).
 	entries, err := os.ReadDir(appsDir)
 	if err != nil {
 		logFatal("Cannot read %s/: %v\n", appsDir, err)
@@ -250,58 +249,34 @@ func deployDisk(keep []string) {
 		return
 	}
 
+	// rsync each app: only transfers changed files, --delete removes stale files.
 	for _, name := range appDirs {
-		localPath, _ := filepath.Abs(filepath.Join(appsDir, name))
-		remotePath := diskVolume + "/apps"
-
-		logInfo("  Copying %s → %s/apps/\n", name, volName)
-
-		// Delete the existing app directory on the volume first (if present),
-		// then duplicate the local directory.  Both operations go through Finder
-		// to satisfy macOS 15 FSKit entitlement requirements on FAT32 volumes.
-		script := fmt.Sprintf(`
-set srcFolder to POSIX file %q
-set dstFolder to POSIX file %q
-tell application "Finder"
-    if exists folder %q of folder dstFolder then
-        delete folder %q of folder dstFolder
-    end if
-    duplicate folder srcFolder to folder dstFolder
-end tell
-`, localPath, remotePath, name, name)
-
-		cmd := exec.Command("osascript", "-e", script)
+		src := filepath.Join(appsDir, name) + "/"
+		dst := diskVolume + "/apps/" + name
+		logInfo("  Syncing %s → %s/apps/%s\n", name, volName, name)
+		cmd := exec.Command("rsync", "-a", "--delete", src, dst)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			logWarn("  Failed to copy %s: %v\n", name, err)
+			logWarn("  Failed to sync %s: %v\n", name, err)
 		}
 	}
 
-	// Remove unwanted factory apps from the volume.
-	appsRemotePath := diskVolume + "/apps"
+	// Remove unwanted factory apps.
 	for _, name := range defaultFactoryAppsToRemove {
 		if keepSet[name] {
 			continue
 		}
-		logInfo("  Removing factory app: %s\n", name)
-		script := fmt.Sprintf(`
-set dstFolder to POSIX file %q
-tell application "Finder"
-    if exists folder %q of folder dstFolder then
-        delete folder %q of folder dstFolder
-    end if
-end tell
-`, appsRemotePath, name, name)
-		cmd := exec.Command("osascript", "-e", script)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			logWarn("  Failed to remove %s: %v\n", name, err)
+		target := diskVolume + "/apps/" + name
+		if _, err := os.Stat(target); err == nil {
+			logInfo("  Removing factory app: %s\n", name)
+			if err := os.RemoveAll(target); err != nil {
+				logWarn("  Failed to remove %s: %v\n", name, err)
+			}
 		}
 	}
 
-	logSuccess("Done. Safely unmount the %s volume (Finder → eject).\n", volName)
+	logSuccess("Done. Safely unmount %s (Finder → eject).\n", volName)
 	logInfo("The badge will reboot into the menu when unmounted.\n")
 }
 
