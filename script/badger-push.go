@@ -22,6 +22,10 @@ import (
 
 const picoPortPattern = "/dev/tty.usbmodem*"
 
+// RP2350 presents this volume when in BOOTSEL (UF2 mass-storage) mode.
+// RP2040 boards use RPI-RP2.
+var bootselVolumes = []string{"/Volumes/RP2350", "/Volumes/RPI-RP2"}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 var (
@@ -56,17 +60,32 @@ func logDetail(format string, a ...any) {
 	}
 }
 
+// confirmPrompt prints msg + " [y/N] " and returns true only if the user types
+// y or yes. Skipped (returns true) when --yes or --dry-run is active.
+func confirmPrompt(msg string) bool {
+	if cli.Yes || cli.DryRun {
+		return true
+	}
+	fmt.Fprintf(os.Stderr, styleWarning.Render(msg+" [y/N] "))
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	answer := strings.TrimSpace(strings.ToLower(line))
+	fmt.Fprintln(os.Stderr)
+	return answer == "y" || answer == "yes"
+}
+
 // ── CLI ───────────────────────────────────────────────────────────────────────
 
 var cli struct {
 	Port    string `short:"p" help:"Serial port (default: first /dev/tty.usbmodem*)." placeholder:"PORT"`
 	DryRun  bool   `help:"Show what would be sent without touching the device." name:"dry-run"`
+	Yes     bool   `short:"y" help:"Skip confirmation prompts." name:"yes"`
 	Verbose int    `short:"v" type:"counter" help:"Increase verbosity (-v, -vv)."`
 
 	Upload UploadCmd `cmd:"" default:"withargs" help:"Push app code and examples to device."`
 	Data   DataCmd   `cmd:"" help:"Push data files (JSON) to device."`
 	Logs   LogsCmd   `cmd:"" help:"Stream serial output from device."`
 	Reset  ResetCmd  `cmd:"" help:"Soft-reset the device."`
+	Flash  FlashCmd  `cmd:"" help:"Flash UF2 firmware via BOOTSEL mass-storage mode."`
 }
 
 type UploadCmd struct {
@@ -76,11 +95,15 @@ type UploadCmd struct {
 type DataCmd struct{}
 type LogsCmd struct{}
 type ResetCmd struct{}
+type FlashCmd struct {
+	UF2 string `arg:"" help:"Path to .uf2 firmware file." type:"existingfile"`
+}
 
 func (c *UploadCmd) Run() error { uploadFiles(c.Force); return nil }
 func (c *DataCmd) Run() error   { pushData(); return nil }
 func (c *LogsCmd) Run() error   { tailLogs(); return nil }
 func (c *ResetCmd) Run() error  { resetDevice(); return nil }
+func (c *FlashCmd) Run() error  { flashFirmware(c.UF2); return nil }
 
 // ── Port detection ────────────────────────────────────────────────────────────
 
@@ -136,7 +159,9 @@ func ensureDir(port, remotePath string) {
 	}
 }
 
-// copyFile copies a local file to a remote path on the device.
+// copyFile copies a local file to a remote path on the device via mpremote.
+// mpremote uses the MicroPython REPL filesystem protocol, so this works in
+// normal (non-disk) mode — the device does not need to be in BOOTSEL/MSC mode.
 func copyFile(port, localPath, remotePath string) error {
 	if cli.DryRun {
 		logDetail("DRY RUN: cp %s → :%s\n", localPath, remotePath)
@@ -186,6 +211,11 @@ func uploadIgnored(rel string) bool {
 }
 
 func uploadFiles(force bool) {
+	if !confirmPrompt("This will overwrite the device filesystem. Continue?") {
+		logInfo("Aborted.\n")
+		return
+	}
+
 	port := findPort()
 	logInfo("Uploading to %s...\n", port)
 
@@ -347,6 +377,108 @@ func resetDevice() {
 		return
 	}
 	logSuccess("Device reset.\n")
+}
+
+// ── Flash firmware ────────────────────────────────────────────────────────────
+
+func findBootselVolume() string {
+	for _, v := range bootselVolumes {
+		if _, err := os.Stat(v); err == nil {
+			return v
+		}
+	}
+	return ""
+}
+
+// uf2Copy writes src into destDir using raw Go I/O. This avoids the macOS
+// extended-attribute metadata that `cp` can attach to FAT32 volumes, which
+// confuses some UF2 bootloaders.
+func uf2Copy(src, destDir string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(
+		filepath.Join(destDir, filepath.Base(src)),
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644,
+	)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	// The device may reboot (and unmount the volume) before Sync returns; that's fine.
+	_ = out.Sync()
+	return nil
+}
+
+func flashFirmware(uf2Path string) {
+	if !confirmPrompt("This will overwrite the device firmware. Continue?") {
+		logInfo("Aborted.\n")
+		return
+	}
+
+	// Check whether the device is already in BOOTSEL mode.
+	vol := findBootselVolume()
+	if vol == "" {
+		logInfo("Device not in BOOTSEL mode.\n")
+		logInfo("  1. Hold the BOOTSEL button on the Badger.\n")
+		logInfo("  2. Press RESET (or unplug and replug while holding BOOTSEL).\n")
+		logInfo("  3. Release BOOTSEL once the USB drive mounts.\n")
+		fmt.Fprintf(os.Stderr, styleInfo.Render("Press Enter when ready (or Ctrl+C to abort): "))
+		bufio.NewReader(os.Stdin).ReadString('\n')
+
+		fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for RP2350 volume"))
+		for i := 0; i < 30; i++ {
+			vol = findBootselVolume()
+			if vol != "" {
+				break
+			}
+			fmt.Fprintf(os.Stderr, styleInfo.Render("."))
+			time.Sleep(500 * time.Millisecond)
+		}
+		fmt.Fprintln(os.Stderr)
+		if vol == "" {
+			logFatal("Timed out — RP2350 volume not found. Was BOOTSEL held during reset?\n")
+		}
+	}
+
+	logSuccess("Found %s\n", vol)
+	logInfo("Copying %s → %s...\n", filepath.Base(uf2Path), vol)
+
+	if err := uf2Copy(uf2Path, vol); err != nil {
+		logFatal("Flash failed: %v\n", err)
+	}
+
+	// Wait for the BOOTSEL volume to disappear — the device has accepted the
+	// firmware and is rebooting.
+	fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for device to reboot"))
+	for i := 0; i < 20; i++ {
+		if findBootselVolume() == "" {
+			break
+		}
+		fmt.Fprintf(os.Stderr, styleInfo.Render("."))
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	// Wait for the serial port to reappear (device running MicroPython again).
+	for i := 0; i < 20; i++ {
+		ports, _ := filepath.Glob(picoPortPattern)
+		if len(ports) > 0 {
+			fmt.Fprintln(os.Stderr)
+			logSuccess("Device ready on %s\n", ports[0])
+			return
+		}
+		fmt.Fprintf(os.Stderr, styleInfo.Render("."))
+		time.Sleep(500 * time.Millisecond)
+	}
+	fmt.Fprintln(os.Stderr)
+	logSuccess("Firmware flashed. No serial port detected yet — give it a moment.\n")
 }
 
 // ── io.Discard alias for older Go ─────────────────────────────────────────────
