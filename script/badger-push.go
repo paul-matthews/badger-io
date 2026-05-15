@@ -159,26 +159,38 @@ func mpremoteExec(port, code string) error {
 	return cmd.Run()
 }
 
+const remountSystemCode = "import rp2, os\ntry:\n    os.umount('/system')\nexcept OSError:\n    pass\nos.mount(os.VfsFat(rp2.Flash()), '/system')\n"
+
 // ensureDir creates a directory on the device, ignoring "already exists" errors.
+// For /system/ paths the FAT partition is remounted read-write in the same
+// mpremote session so the mkdir succeeds.
 func ensureDir(port, remotePath string) {
-	code := fmt.Sprintf(
-		"import os\ntry:\n    os.mkdir(%q)\nexcept OSError:\n    pass\n",
-		remotePath,
-	)
+	var code string
+	if strings.HasPrefix(remotePath, "/system/") {
+		code = remountSystemCode + fmt.Sprintf("import os\ntry:\n    os.mkdir(%q)\nexcept OSError:\n    pass\n", remotePath)
+	} else {
+		code = fmt.Sprintf("import os\ntry:\n    os.mkdir(%q)\nexcept OSError:\n    pass\n", remotePath)
+	}
 	if err := mpremoteExec(port, code); err != nil {
 		logWarn("Could not ensure dir %s: %v\n", remotePath, err)
 	}
 }
 
 // copyFile copies a local file to a remote path on the device via mpremote.
-// mpremote uses the MicroPython REPL filesystem protocol, so this works in
-// normal (non-disk) mode — the device does not need to be in BOOTSEL/MSC mode.
+// For /system/ paths the FAT partition is remounted read-write in the same
+// mpremote session (remount + fs cp are chained so the mount persists).
 func copyFile(port, localPath, remotePath string) error {
 	if cli.DryRun {
 		logDetail("DRY RUN: cp %s → :%s\n", localPath, remotePath)
 		return nil
 	}
-	cmd := exec.Command("mpremote", mpremoteArgs(port, "fs", "cp", localPath, ":"+remotePath)...)
+	var args []string
+	if strings.HasPrefix(remotePath, "/system/") {
+		args = mpremoteArgs(port, "exec", remountSystemCode, "fs", "cp", localPath, ":"+remotePath)
+	} else {
+		args = mpremoteArgs(port, "fs", "cp", localPath, ":"+remotePath)
+	}
+	cmd := exec.Command("mpremote", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cp %s: %w\n%s", localPath, err, strings.TrimSpace(string(out)))
@@ -430,6 +442,12 @@ func uploadFiles(force bool, filterApps []string) {
 	} else {
 		logWarn("Upload complete with %d error(s). %d files pushed.\n", failed, len(jobs)-failed)
 	}
+
+	// Reset to restore the /system/ read-only mount (each copyFile remounted it).
+	logInfo("Resetting device...\n")
+	if _, err := runMpremote(port, "reset"); err != nil {
+		logWarn("Reset failed (device may need manual reset): %v\n", err)
+	}
 }
 
 // ── Push data files ────────────────────────────────────────────────────────────
@@ -444,7 +462,7 @@ func pushData(filterApps []string) {
 		logFatal("Failed to list apps/: %v\n", err)
 	}
 
-	pushed := 0
+	var jobs []struct{ local, remote string }
 	for _, rel := range files {
 		if uploadIgnored(rel) || !strings.HasSuffix(rel, ".json") {
 			continue
@@ -452,10 +470,21 @@ func pushData(filterApps []string) {
 		if !inFilter(filterApps, appNameFromRel(rel)) {
 			continue
 		}
-		local := filepath.Join("apps", rel)
-		remote := "/system/apps/" + filepath.ToSlash(rel)
-		logInfo("  %s → %s\n", styleDim.Render(local), remote)
-		if err := copyFile(port, local, remote); err != nil {
+		jobs = append(jobs, struct{ local, remote string }{
+			filepath.Join("apps", rel),
+			"/system/apps/" + filepath.ToSlash(rel),
+		})
+	}
+
+	if len(jobs) == 0 {
+		logWarn("No data files found to push.\n")
+		return
+	}
+
+	pushed := 0
+	for _, j := range jobs {
+		logInfo("  %s → %s\n", styleDim.Render(j.local), j.remote)
+		if err := copyFile(port, j.local, j.remote); err != nil {
 			logWarn("  Failed: %v\n", err)
 			continue
 		}
@@ -463,6 +492,10 @@ func pushData(filterApps []string) {
 	}
 
 	logSuccess("Data push complete: %d files.\n", pushed)
+	logInfo("Resetting device...\n")
+	if _, err := runMpremote(port, "reset"); err != nil {
+		logWarn("Reset failed (device may need manual reset): %v\n", err)
+	}
 }
 
 // ── Serve docs ────────────────────────────────────────────────────────────────

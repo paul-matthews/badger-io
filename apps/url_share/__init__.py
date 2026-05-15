@@ -1,5 +1,6 @@
 import sys
 import os
+import gc
 import bluetooth
 import qrcode
 from badgeware import run, State
@@ -17,9 +18,6 @@ FOOTER_TEXT_Y = H - 12
 
 state = {"url": ""}
 State.load("url_share", state)
-
-_companion_code = qrcode.QRCode()
-_companion_code.set_text(COMPANION_URL)
 
 # ── BLE ───────────────────────────────────────────────────────────────────────
 
@@ -108,19 +106,22 @@ def draw_advertising():
     screen.clear()
     _header("Sharing - scan QR to connect")
 
-    qr_total = _draw_qr(4, 30, _companion_code)
+    gc.collect()
+    companion_code = qrcode.QRCode()
+    companion_code.set_text(COMPANION_URL)
+    qr_total = _draw_qr(4, 30, companion_code)
 
     tx = qr_total + 12
     screen.pen = color.black
     screen.font = small
     screen.text("Open in Chrome,", tx, 38)
     screen.text("tap Connect,", tx, 54)
-    screen.text("enter a URL", tx, 70)
-    screen.text("and tap Send.", tx, 86)
+    screen.text("enter a URL,", tx, 70)
+    screen.text("Send, then press B.", tx, 86)
 
     screen.pen = color.dark_grey
     screen.shape(shape.rectangle(0, FOOTER_LINE_Y, W, 1))
-    screen.text("B: stop", 8, FOOTER_TEXT_Y)
+    screen.text("B: done", 8, FOOTER_TEXT_Y)
     hw, _ = screen.measure_text("HOME: menu")
     screen.text("HOME: menu", W - hw - 8, FOOTER_TEXT_Y)
 
@@ -130,6 +131,7 @@ def draw_url(url):
     screen.clear()
     _header("Received")
 
+    gc.collect()
     code = qrcode.QRCode()
     code.set_text(url)
     qr_total = _draw_qr(4, 30, code)
