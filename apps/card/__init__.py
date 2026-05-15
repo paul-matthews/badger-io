@@ -10,12 +10,12 @@ os.chdir("/system/apps/card")
 screen.antialias = screen.X2
 
 _config = {}
-for _path in ("card.local.json", "card.json"):
+for _path in ("/state/cfg_card.json", "card.local.json", "card.json"):
     try:
         with open(_path) as _f:
             _config = json.load(_f)
         break
-    except OSError:
+    except (OSError, ValueError):
         pass
 
 NAME = _config.get("name", "Your Name")

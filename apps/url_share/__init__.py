@@ -11,9 +11,18 @@ os.chdir("/system/apps/url_share")
 
 COMPANION_URL = "https://paul-matthews.github.io/badger-io/"
 
-URLS_PATH   = "urls.local.json"
-CARD_PATH   = "/system/apps/card/card.local.json"
-TOPICS_PATH = "/system/apps/topics/topics.local.json"
+# /system/ is read-only at runtime; /state/ is the writable mount that all
+# apps can read. Config the web app sends is persisted here; the card and
+# topics apps read these same paths first. Distinct cfg_ names avoid
+# colliding with the State API's own /state/<appname>.json files.
+URLS_PATH   = "/state/cfg_urls.json"
+CARD_PATH   = "/state/cfg_card.json"
+TOPICS_PATH = "/state/cfg_topics.json"
+
+try:
+    os.mkdir("/state")
+except OSError:
+    pass
 
 small = rom_font.smart
 W = screen.width
@@ -143,7 +152,8 @@ for _h in (_url_handle, _card_handle, _topics_handle):
 
 # Expose current card JSON so the web app can pre-fill its form on connect.
 # Pad to 512 so the GATT buffer keeps full capacity for later large writes.
-_card_now = _read_text("/system/apps/card/card.local.json",
+_card_now = _read_text(CARD_PATH,
+                       "/system/apps/card/card.local.json",
                        "/system/apps/card/card.json")
 if _card_now:
     _cb = _card_now.encode("utf-8")[:512]

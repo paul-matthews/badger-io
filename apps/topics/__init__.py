@@ -9,12 +9,12 @@ sys.path.insert(0, "/system/apps/topics")
 os.chdir("/system/apps/topics")
 
 _config = {}
-for _path in ("topics.local.json", "topics.json"):
+for _path in ("/state/cfg_topics.json", "topics.json"):
     try:
         with open(_path) as _f:
             _config = json.load(_f)
         break
-    except OSError:
+    except (OSError, ValueError):
         pass
 
 topics = _config.get("topics", [])
