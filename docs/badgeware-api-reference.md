@@ -36,7 +36,8 @@ def update():        # required — called every frame/wake
 def on_exit():       # optional — called when HOME pressed
     pass
 
-run(update)          # REQUIRED at end of module
+if __name__ == "__main__":
+    run(update)
 ```
 
 ### Lifecycle (Badger e-paper specifics)
@@ -47,18 +48,14 @@ run(update)          # REQUIRED at end of module
 - The HOME button triggers `on_exit()` then returns to menu (handled by firmware IRQ).
 - `/system/` is **read-only** at runtime. Write to `/state/` or `/` (LittleFS root).
 
-### Entry point rule
+### Entry point rule (v1.0.0)
 
-`/system/main.py` imports the app with `__import__(app)`, and the app **blocks during import** by calling `run(update)` at module level. `main.py` does NOT call `run()` itself after the import.
+`/system/main.py` does `running_app = __import__(app)` then calls `run(running_app.update)` itself.
+Apps **must NOT** call `run()` at module level — it would block inside `__import__()`, leaving `running_app`
+unassigned, so the HOME button fires `NameError: name 'running_app' isn't defined`.
 
-Use this guard to prevent double-execution when imported as a module (e.g. during testing):
-
-```python
-if __name__ == "__main__":
-    run(update)
-```
-
-But for normal deployment via the menu, `run(update)` at module level is the correct pattern per the official docs.
+The `if __name__ == "__main__": run(update)` guard (shown above) is required. The official docs show bare
+`run(update)` at module level but those target newer firmware — that pattern is **wrong for v1.0.0**.
 
 ---
 
@@ -112,12 +109,14 @@ badge.default_clear  # color | None — screen clear color each frame (None = no
 badge.default_pen    # color — default pen after clear
 badge.update         # reassign to swap screen handler
 
-# Buttons
-badge.pressed(BUTTON_A)    # True on first frame button is pressed
-badge.held(BUTTON_B)       # True continuously while held
-badge.released(BUTTON_C)   # True on first frame button is released
-badge.changed(BUTTON_UP)   # True if state changed this frame
-badge.pressed()            # returns list of all currently-pressed buttons
+# Buttons — v1.0.0 pattern (raw io module, manual edge detection)
+io.BUTTON_B in io.pressed   # button is currently held
+# Edge detection: track previous state yourself
+
+# Newer firmware exposes badge.pressed() etc — NOT available in v1.0.0:
+# badge.pressed(BUTTON_A)   # True on first frame button is pressed
+# badge.held(BUTTON_B)       # True continuously while held
+# badge.released(BUTTON_C)   # True on frame button is released
 ```
 
 ### Button constants
@@ -604,6 +603,8 @@ def update():
 
 | Issue | Detail |
 |-------|--------|
+| `run(update)` at module level | **WRONG for v1.0.0** -- `main.py` calls `run()` after import; bare `run(update)` blocks import, HOME button fires NameError. Use `if __name__ == "__main__": run(update)` |
+| `badge.pressed()` / `badge.held()` | **Newer firmware only** -- not available in v1.0.0. Use `io.BUTTON_B in io.pressed` |
 | `screen.update()` | Do NOT call from user code -- `run()` handles it |
 | `screen.set_rotation()` | Does NOT exist -- `screen` doesn't support rotation |
 | Non-ASCII characters | **Crash the font renderer** -- ASCII only, no em-dashes, smart quotes etc |
