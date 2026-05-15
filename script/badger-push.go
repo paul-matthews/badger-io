@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -49,10 +50,32 @@ func initLogger(verbose int) {
 	logger = clog.NewWithOptions(os.Stderr, clog.Options{Level: level})
 }
 
-func logInfo(format string, a ...any)    { fmt.Fprintf(os.Stderr, styleInfo.Render(fmt.Sprintf(format, a...))) }
-func logSuccess(format string, a ...any) { fmt.Fprintf(os.Stderr, styleSuccess.Render(fmt.Sprintf(format, a...))) }
-func logWarn(format string, a ...any)    { fmt.Fprintf(os.Stderr, styleWarning.Render(fmt.Sprintf(format, a...))) }
-func logErr(format string, a ...any)     { fmt.Fprintf(os.Stderr, styleError.Render(fmt.Sprintf(format, a...))) }
+// styled formats the message, then applies st to each line individually,
+// joining lines with an UNSTYLED "\n". Newlines must never pass through
+// lipgloss.Render: it styles each split line and re-wraps, so a trailing
+// "\n" would leave the newline inside the colour span plus a dangling empty
+// styled segment with no final newline — the cursor ends mid-line and every
+// subsequent line marches rightward (the "tabbing in" staircase). Building
+// the string and printing it with Fprint (not Fprintf) also stops "%" in
+// paths/error text from being read as a format verb.
+func styled(st lipgloss.Style, format string, a ...any) string {
+	msg := fmt.Sprintf(format, a...)
+	var b strings.Builder
+	for i, line := range strings.Split(msg, "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		if line != "" {
+			b.WriteString(st.Render(line))
+		}
+	}
+	return b.String()
+}
+
+func logInfo(format string, a ...any)    { fmt.Fprint(os.Stderr, styled(styleInfo, format, a...)) }
+func logSuccess(format string, a ...any) { fmt.Fprint(os.Stderr, styled(styleSuccess, format, a...)) }
+func logWarn(format string, a ...any)    { fmt.Fprint(os.Stderr, styled(styleWarning, format, a...)) }
+func logErr(format string, a ...any)     { fmt.Fprint(os.Stderr, styled(styleError, format, a...)) }
 func logFatal(format string, a ...any)   { logErr(format, a...); os.Exit(1) }
 func logDetail(format string, a ...any) {
 	if logger != nil {
@@ -66,7 +89,7 @@ func confirmPrompt(msg string) bool {
 	if cli.Yes || cli.DryRun {
 		return true
 	}
-	fmt.Fprintf(os.Stderr, styleWarning.Render(msg+" [y/N] "))
+	fmt.Fprint(os.Stderr, styleWarning.Render(msg+" [y/N] "))
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	answer := strings.TrimSpace(strings.ToLower(line))
 	fmt.Fprintln(os.Stderr)
@@ -96,7 +119,8 @@ type UploadCmd struct {
 }
 
 type DiskCmd struct {
-	Keep []string `help:"Factory app names to preserve (default: removes badge, the_compendium, hydrate, mass_storage, list)." name:"keep"`
+	Keep   []string `help:"Factory app names to preserve (default: removes badge, the_compendium, hydrate, mass_storage, list)." name:"keep"`
+	Manual bool     `help:"Skip the automatic trigger; wait for a manual RESET double-tap instead." name:"manual"`
 }
 type DataCmd struct {
 	Apps []string `arg:"" optional:"" name:"app" help:"App names to push data for (default: all apps)."`
@@ -109,7 +133,7 @@ type FlashCmd struct {
 }
 
 func (c *UploadCmd) Run() error { uploadFiles(c.Force, c.Apps); return nil }
-func (c *DiskCmd) Run() error   { deployDisk(c.Keep); return nil }
+func (c *DiskCmd) Run() error   { deployDisk(c.Keep, c.Manual); return nil }
 func (c *DataCmd) Run() error   { pushData(c.Apps); return nil }
 func (c *DocsCmd) Run() error   { serveDocs(); return nil }
 func (c *LogsCmd) Run() error   { tailLogs(); return nil }
@@ -118,18 +142,29 @@ func (c *FlashCmd) Run() error  { flashFirmware(c.UF2); return nil }
 
 // ── Port detection ────────────────────────────────────────────────────────────
 
-func findPort() string {
+// findPortQuiet returns the serial port to use, or "" if no device is
+// present. It never exits — callers that can fall back (e.g. the disk
+// command, which can also wait for a manual RESET double-tap) use this.
+func findPortQuiet() string {
 	if cli.Port != "" {
 		return cli.Port
 	}
 	ports, _ := filepath.Glob(picoPortPattern)
 	if len(ports) == 0 {
-		logFatal("No device found at %s\nConnect the Badger and try again.\n", picoPortPattern)
+		return ""
 	}
 	if len(ports) > 1 {
 		logWarn("Multiple devices found; using %s. Use --port to specify.\n", ports[0])
 	}
 	return ports[0]
+}
+
+func findPort() string {
+	port := findPortQuiet()
+	if port == "" {
+		logFatal("No device found at %s\nConnect the Badger and try again.\n", picoPortPattern)
+	}
+	return port
 }
 
 // ── mpremote helpers ──────────────────────────────────────────────────────────
@@ -199,9 +234,9 @@ func copyFile(port, localPath, remotePath string) error {
 }
 
 // removeFactoryAppsMpremote deletes defaultFactoryAppsToRemove from the device
-// over the mpremote/REPL connection. The disk path uses rsync to strip these;
-// the upload path needs an explicit recursive delete. /system is remounted
-// read-write in the same exec session (same trick copyFile uses).
+// over the mpremote/REPL connection. The disk path strips these via rsync; the
+// upload path needs an explicit recursive delete. /system is remounted
+// read-write in the same exec session (the trick copyFile/ensureDir use).
 func removeFactoryAppsMpremote(port string) {
 	if len(defaultFactoryAppsToRemove) == 0 {
 		return
@@ -231,35 +266,77 @@ func removeFactoryAppsMpremote(port string) {
 const diskVolume = "/Volumes/BADGER"
 
 // defaultFactoryAppsToRemove lists built-in apps stripped from the device on
-// every disk deploy. Pass --keep <name> to preserve any of them.
+// every deploy (disk path via rsync; upload path via removeFactoryAppsMpremote).
+// Pass --keep <name> on a disk deploy to preserve any of them.
 var defaultFactoryAppsToRemove = []string{"badge", "the_compendium", "hydrate", "mass_storage", "list"}
+
+// triggerDiskMode asks the running firmware to expose its FAT filesystem as a
+// USB mass-storage device — the same state a RESET double-tap reaches
+// (powman.WAKE_DOUBLETAP -> import _msc -> rp2.enable_msc()). _msc is a frozen
+// firmware module so the underlying call works even though the mass_storage
+// app is stripped from /system. enable_msc() re-enumerates USB, so mpremote
+// loses the serial link mid-call: a non-zero exit or context timeout here is
+// expected, not a failure — the BADGER volume appearing is the real success
+// signal, so this returns nothing and the caller polls for the volume.
+func triggerDiskMode(port string) {
+	if cli.DryRun {
+		logDetail("DRY RUN: exec 'import rp2; rp2.enable_msc()' on %s\n", port)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "mpremote",
+		mpremoteArgs(port, "exec", "import rp2; rp2.enable_msc()")...)
+	_ = cmd.Run()
+}
+
+// waitForVolume polls for the disk volume with a spinner, up to timeout.
+func waitForVolume(volName string, timeout time.Duration) bool {
+	if _, err := os.Stat(diskVolume); err == nil {
+		return true
+	}
+	fmt.Fprint(os.Stderr, styled(styleInfo, "Waiting for %s volume", volName))
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(diskVolume); err == nil {
+			fmt.Fprintln(os.Stderr)
+			return true
+		}
+		fmt.Fprint(os.Stderr, styled(styleInfo, "."))
+		time.Sleep(500 * time.Millisecond)
+	}
+	fmt.Fprintln(os.Stderr)
+	return false
+}
 
 // deployDisk rsyncs all app directories to the Badger USB Disk Mode volume and
 // removes unwanted factory apps.
-func deployDisk(keep []string) {
+func deployDisk(keep []string, manual bool) {
 	keepSet := make(map[string]bool, len(keep))
 	for _, k := range keep {
 		keepSet[k] = true
 	}
 	volName := filepath.Base(diskVolume)
 
-	// Check or wait for the volume.
+	// Acquire the volume: trigger USB Disk Mode over serial if a device is
+	// present, otherwise (or if it doesn't take) fall back to manual RESET.
 	if _, err := os.Stat(diskVolume); err != nil {
-		logInfo("%s volume not found.\n", volName)
-		logInfo("  1. Connect the Badger via USB-C.\n")
-		logInfo("  2. Double-tap the RESET button on the back.\n")
-		logInfo("  3. Wait for a disk named %q to appear.\n", volName)
-		fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for "+volName+" volume"))
-		for i := 0; i < 60; i++ {
-			if _, err := os.Stat(diskVolume); err == nil {
-				break
-			}
-			fmt.Fprintf(os.Stderr, styleInfo.Render("."))
-			time.Sleep(500 * time.Millisecond)
+		port := ""
+		if !manual {
+			port = findPortQuiet()
 		}
-		fmt.Fprintln(os.Stderr)
-		if _, err := os.Stat(diskVolume); err != nil {
-			logFatal("Timed out — %s volume not found.\n", volName)
+		if port != "" {
+			logInfo("Triggering USB Disk Mode on %s...\n", port)
+			triggerDiskMode(port)
+		}
+		if !waitForVolume(volName, 20*time.Second) {
+			logInfo("%s volume not found.\n", volName)
+			logInfo("  1. Connect the Badger via USB-C.\n")
+			logInfo("  2. Double-tap the RESET button on the back.\n")
+			logInfo("  3. Wait for a disk named %q to appear.\n", volName)
+			if !waitForVolume(volName, 30*time.Second) {
+				logFatal("Timed out - %s volume not found.\n", volName)
+			}
 		}
 	}
 	logSuccess("Found %s\n", diskVolume)
@@ -658,16 +735,16 @@ func flashFirmware(uf2Path string) {
 		logInfo("  1. Hold the BOOTSEL button on the Badger.\n")
 		logInfo("  2. Press RESET (or unplug and replug while holding BOOTSEL).\n")
 		logInfo("  3. Release BOOTSEL once the USB drive mounts.\n")
-		fmt.Fprintf(os.Stderr, styleInfo.Render("Press Enter when ready (or Ctrl+C to abort): "))
+		fmt.Fprint(os.Stderr, styleInfo.Render("Press Enter when ready (or Ctrl+C to abort): "))
 		bufio.NewReader(os.Stdin).ReadString('\n')
 
-		fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for RP2350 volume"))
+		fmt.Fprint(os.Stderr, styleInfo.Render("Waiting for RP2350 volume"))
 		for i := 0; i < 30; i++ {
 			vol = findBootselVolume()
 			if vol != "" {
 				break
 			}
-			fmt.Fprintf(os.Stderr, styleInfo.Render("."))
+			fmt.Fprint(os.Stderr, styleInfo.Render("."))
 			time.Sleep(500 * time.Millisecond)
 		}
 		fmt.Fprintln(os.Stderr)
@@ -685,12 +762,12 @@ func flashFirmware(uf2Path string) {
 
 	// Wait for the BOOTSEL volume to disappear — the device has accepted the
 	// firmware and is rebooting.
-	fmt.Fprintf(os.Stderr, styleInfo.Render("Waiting for device to reboot"))
+	fmt.Fprint(os.Stderr, styleInfo.Render("Waiting for device to reboot"))
 	for i := 0; i < 20; i++ {
 		if findBootselVolume() == "" {
 			break
 		}
-		fmt.Fprintf(os.Stderr, styleInfo.Render("."))
+		fmt.Fprint(os.Stderr, styleInfo.Render("."))
 		time.Sleep(500 * time.Millisecond)
 	}
 
@@ -702,7 +779,7 @@ func flashFirmware(uf2Path string) {
 			logSuccess("Device ready on %s\n", ports[0])
 			return
 		}
-		fmt.Fprintf(os.Stderr, styleInfo.Render("."))
+		fmt.Fprint(os.Stderr, styleInfo.Render("."))
 		time.Sleep(500 * time.Millisecond)
 	}
 	fmt.Fprintln(os.Stderr)
